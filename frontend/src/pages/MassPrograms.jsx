@@ -3,23 +3,33 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import logo from "../assets/zuca-logo.png";
-import { FaChurch, FaRegKeyboard, FaFileWord, FaFilePdf, FaFacebook, FaTelegramPlane, FaEye } from "react-icons/fa";
+import {
+  FaChurch, FaFileWord, FaFilePdf, FaFacebook, FaTelegramPlane,
+  FaRegKeyboard,
+} from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import html2canvas from "html2canvas";
 import {
-  FiShare2, FiCalendar, FiMapPin, FiSearch, FiChevronDown, FiChevronUp,
-  FiCopy, FiDownload, FiClock, FiHeart, FiPrinter, FiMail, FiEye,
+  FiShare2, FiSearch, FiChevronRight, FiChevronLeft,
+  FiCopy, FiPrinter, FiMail, FiX, FiClock,
+  FiMusic, FiInbox, FiMoreHorizontal, FiArrowLeft,
+  FiCalendar, FiSun,
 } from "react-icons/fi";
 import {
-  BsMusicNoteBeamed, BsWhatsapp, BsTwitter, BsMusicNoteList,
-  BsPlayCircle, BsFileImage,
+  BsWhatsapp, BsTwitter, BsFileImage, BsMusicNoteBeamed,
+  BsPlayCircle,
 } from "react-icons/bs";
 import { MdOutlineFormatQuote } from "react-icons/md";
 import BASE_URL from "../api";
 
 /* =========================================================
+   MODULE-LEVEL CACHE (survives component re-mount)
+========================================================= */
+let PROGRAMS_CACHE = null;
+
+/* =========================================================
    HELPERS
-   ========================================================= */
+========================================================= */
 const parseSongs = (value) => {
   if (!value) return [];
   if (typeof value === "string" && value.includes(";")) {
@@ -30,117 +40,142 @@ const parseSongs = (value) => {
   return [];
 };
 
+const formatLongDate = (dateStr) =>
+  new Date(dateStr).toLocaleDateString("en-US", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+
+const isToday = (dateStr) =>
+  new Date(dateStr).toDateString() === new Date().toDateString();
+
+const isTomorrow = (dateStr) => {
+  const t = new Date();
+  t.setDate(t.getDate() + 1);
+  return new Date(dateStr).toDateString() === t.toDateString();
+};
+
+const isPast = (dateStr) => {
+  const d = new Date(dateStr);
+  d.setHours(23, 59, 59, 999);
+  return d < new Date();
+};
+
 const songFields = [
-  { key: "entrance",    label: "Entrance",    icon: "", category: "opening",      mobileOrder: 1,  description: "Entrance procession song" },
-  { key: "mass",        label: "Mass",        icon: "", category: "liturgy",      mobileOrder: 2,  description: "lord have mercy and gloriuos" },
-  { key: "bible",       label: "Reading",     icon: "", category: "word",         mobileOrder: 3,  description: "Bible procession song" },
-  { key: "offertory",   label: "Offertory",   icon: "", category: "offering",     mobileOrder: 4,  description: "Preparation of gifts" },
-  { key: "procession",  label: "Procession",  icon: "", category: "procession",   mobileOrder: 5,  description: "Offering procession song" },
-  { key: "mtakatifu",   label: "Mtakatifu",   icon: "", category: "special",      mobileOrder: 6,  description: "Kylie" },
-  { key: "signOfPeace", label: "Peace",       icon: "", category: "peace",        mobileOrder: 7,  description: "Sign of Peace" },
-  { key: "communion",   label: "Communion",   icon: "", category: "communion",    mobileOrder: 8,  description: "Communion song" },
-  { key: "thanksgiving",label: "Thanksgiving",icon: "", category: "thanksgiving", mobileOrder: 9,  description: "Post-Communion" },
-  { key: "exit",        label: "Exit",        icon: "", category: "closing",      mobileOrder: 10, description: "Recessional song" },
+  { key: "entrance",     label: "Entrance" },
+  { key: "mass",         label: "Mass" },
+  { key: "bible",        label: "Bible" },
+  { key: "offertory",    label: "Offering" },
+  { key: "procession",   label: "Offertory Procession" },
+  { key: "mtakatifu",    label: "Sanctus" },
+  { key: "signOfPeace",  label: "Peace" },
+  { key: "communion",    label: "Communion" },
+  { key: "thanksgiving", label: "Thanksgiving" },
+  { key: "exit",         label: "Exit" },
 ];
 
-const mobileCompactFields = songFields.slice(0, 6);
+const getGreeting = () => {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 16) return "Good afternoon";
+  return "Good evening";
+};
 
+const themeBg = (theme) => {
+  const map = {
+    emerald:  "linear-gradient(135deg, #059669 0%, #0d9488 40%, #7c3aed 100%)",
+    sunset:   "linear-gradient(135deg, #f97316 0%, #ef4444 50%, #be185d 100%)",
+    ocean:    "linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #6366f1 100%)",
+    midnight: "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)",
+    royal:    "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)",
+    navy:     "linear-gradient(135deg, #0c4a6e 0%, #075985 50%, #1e3a8a 100%)",
+    violet:   "linear-gradient(135deg, #8b5cf6 0%, #a855f7 50%, #d946ef 100%)",
+    aurora:   "linear-gradient(135deg, #06b6d4 0%, #8b5cf6 50%, #f43f5e 100%)",
+    ink:      "linear-gradient(135deg, #1f2937 0%, #0f172a 50%, #000000 100%)",
+    forest:   "linear-gradient(135deg, #15803d 0%, #166534 50%, #365314 100%)",
+    rose:     "linear-gradient(135deg, #f43f5e 0%, #ec4899 50%, #d946ef 100%)",
+    amber:    "linear-gradient(135deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)",
+  };
+  return map[theme] || map.navy;
+};
+
+/* =========================================================
+   SKELETON
+========================================================= */
+function SkeletonCard() {
+  return (
+    <div className="mp-sk-card">
+      <div className="mp-sk-head">
+        <div className="mp-sk-datebox" />
+        <div className="mp-sk-info">
+          <div className="mp-sk-line mp-sk-line-lg" />
+          <div className="mp-sk-line mp-sk-line-md" />
+          <div className="mp-sk-line mp-sk-line-sm" />
+        </div>
+      </div>
+      <div className="mp-sk-carousel">
+        <div className="mp-sk-song" />
+        <div className="mp-sk-song" />
+        <div className="mp-sk-song" />
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   MAIN COMPONENT
+========================================================= */
 export default function MassPrograms() {
   const navigate = useNavigate();
-  const [programs, setPrograms] = useState([]);
-  const [loading, setLoading] = useState(false);
+
+  const [view, setView] = useState("index");
+  const [activeProgram, setActiveProgram] = useState(null);
+
+  const [programs, setPrograms] = useState(PROGRAMS_CACHE || []);
+  const [loading, setLoading] = useState(!PROGRAMS_CACHE);
   const [openingSong, setOpeningSong] = useState(null);
-  const [expandedIds, setExpandedIds] = useState([]);
-  const [collapsedIds, setCollapsedIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedVenue, setSelectedVenue] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [favorites, setFavorites] = useState([]);
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [favorites, setFavorites] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("massProgramFavorites") || "[]"); }
+    catch { return []; }
+  });
   const [highlightedSong, setHighlightedSong] = useState(null);
-  const [songNotes, setSongNotes] = useState({});
-  const [viewMode, setViewMode] = useState("compact");
+  const [songNotes, setSongNotes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("songNotes") || "{}"); }
+    catch { return {}; }
+  });
   const [songPreview, setSongPreview] = useState(null);
   const [generatingImage, setGeneratingImage] = useState(false);
-  const [stats, setStats] = useState({ total: 0, venues: 0, upcoming: 0, totalHymns: 0 });
   const [shareModal, setShareModal] = useState(null);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const [showDownloadMenu, setShowDownloadMenu] = useState(null);
-  const downloadMenuRef = useRef(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [cover, setCover] = useState(null);
+  const [theme, setTheme] = useState("navy");
 
   const token = localStorage.getItem("token");
+  const user = JSON.parse(localStorage.getItem("user") || "null");
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    const stored = JSON.parse(localStorage.getItem("user") || "null");
+    if (!stored) return;
+    const c = stored.coverImage;
+    setCover(c ? (c.startsWith("http") ? c : `${BASE_URL}/${c}`) : null);
+    setTheme(stored.profileTheme || localStorage.getItem("profileTheme") || "navy");
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (downloadMenuRef.current && !downloadMenuRef.current.contains(event.target)) {
-        setShowDownloadMenu(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  /* ---------------- NAVIGATE TO HYMN ---------------- */
-  const navigateToHymn = async (hymnTitle, e) => {
-    e.stopPropagation();
-    if (!hymnTitle || hymnTitle === "—" || hymnTitle.trim() === "") return;
-    setOpeningSong(hymnTitle);
-    try {
-      const response = await axios.get(
-        `${BASE_URL}/api/songs?search=${encodeURIComponent(hymnTitle)}&limit=5`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      const songs = response.data.songs || [];
-      if (songs && songs.length > 0) {
-        navigate(`/hymn/${songs[0].title}`);
-      } else {
-        showToast(`"${hymnTitle}" not found in hymn book`);
-        setOpeningSong(null);
-      }
-    } catch (err) {
-      console.error("Error finding hymn:", err);
-      showToast(`Could not find "${hymnTitle}"`);
-      setOpeningSong(null);
-    }
-  };
-
-  /* ---------------- FETCH ---------------- */
+  /* ---------- fetch (uses cache, silent refresh) ---------- */
   const fetchPrograms = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!PROGRAMS_CACHE) setLoading(true);
       const res = await axios.get(`${BASE_URL}/api/mass-programs`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      const programsData = Array.isArray(res.data) ? res.data : [];
-      setPrograms(programsData);
-
-      const now = new Date();
-      const upcoming = programsData.filter((p) => new Date(p.date) >= now).length;
-      const venues = [...new Set(programsData.map((p) => p.venue).filter(Boolean))].length;
-      setCollapsedIds(programsData.map((p) => p.id));
-
-      let hymnCount = 0;
-      programsData.forEach((p) => {
-        songFields.forEach((f) => {
-          hymnCount += parseSongs(p[f.key]).length;
-        });
-      });
-
-      setStats({
-        total: programsData.length,
-        venues,
-        upcoming,
-        totalHymns: hymnCount,
-      });
+      const data = Array.isArray(res.data) ? res.data : [];
+      PROGRAMS_CACHE = data;
+      setPrograms(data);
     } catch (err) {
       console.error(err);
-      setPrograms([]);
+      if (!PROGRAMS_CACHE) setPrograms([]);
     } finally {
       setLoading(false);
     }
@@ -148,10 +183,6 @@ export default function MassPrograms() {
 
   useEffect(() => {
     fetchPrograms();
-    const savedFavorites = localStorage.getItem("massProgramFavorites");
-    if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
-    const savedNotes = localStorage.getItem("songNotes");
-    if (savedNotes) setSongNotes(JSON.parse(savedNotes));
   }, [fetchPrograms]);
 
   useEffect(() => {
@@ -162,37 +193,67 @@ export default function MassPrograms() {
     localStorage.setItem("songNotes", JSON.stringify(songNotes));
   }, [songNotes]);
 
-  /* ---------------- HELPERS ---------------- */
-  const getSongFrequency = (key) => {
-    let count = 0;
-    programs.forEach((p) => {
-      count += parseSongs(p[key]).length;
-    });
-    return count;
+  /* ---------- navigation ---------- */
+  const openProgram = (p) => {
+    setActiveProgram(p);
+    setView("program");
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+  const closeProgram = () => {
+    setView("index");
+    setActiveProgram(null);
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
 
-  const getUniqueSongs = (key) => {
-    const songs = new Set();
-    programs.forEach((p) => {
-      parseSongs(p[key]).forEach((s) => songs.add(s));
-    });
-    return Array.from(songs);
+  /* ---------- navigate to hymn ---------- */
+  const navigateToHymn = async (hymnTitle, e) => {
+    e.stopPropagation();
+    if (!hymnTitle || hymnTitle === "—" || hymnTitle.trim() === "") return;
+    setOpeningSong(hymnTitle);
+    try {
+      const response = await axios.get(
+        `${BASE_URL}/api/songs?search=${encodeURIComponent(hymnTitle)}&limit=5`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      const songs = response.data.songs || [];
+      if (songs && songs.length > 0) navigate(`/hymn/${songs[0].title}`);
+      else {
+        showToast(`"${hymnTitle}" not found in hymn book`);
+        setOpeningSong(null);
+      }
+    } catch {
+      showToast(`Could not find "${hymnTitle}"`);
+      setOpeningSong(null);
+    }
+  };
+
+  /* ---------- helpers ---------- */
+  const previewSong = (songTitle) => {
+    setSongPreview(songTitle);
+    setTimeout(() => setSongPreview(null), 3000);
+  };
+
+  const getSongsArray = (program, fieldKey) => parseSongs(program[fieldKey]);
+
+  const showToast = (message) => {
+    const toast = document.createElement("div");
+    toast.textContent = message;
+    toast.className = "mp-toast";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
   };
 
   const addSongNote = (programId, songKey, songIndex, currentNote) => {
-    const noteKey =
-      songIndex !== undefined
-        ? `${programId}-${songKey}-${songIndex}`
-        : `${programId}-${songKey}`;
+    const noteKey = songIndex !== undefined ? `${programId}-${songKey}-${songIndex}` : `${programId}-${songKey}`;
     const note = prompt("Add a note for this hymn:", currentNote || "");
     if (note !== null) {
       if (note.trim() !== "") {
         setSongNotes((prev) => ({ ...prev, [noteKey]: note }));
         showToast("Note added");
       } else {
-        const newNotes = { ...songNotes };
-        delete newNotes[noteKey];
-        setSongNotes(newNotes);
+        const n = { ...songNotes };
+        delete n[noteKey];
+        setSongNotes(n);
         showToast("Note removed");
       }
     }
@@ -203,90 +264,40 @@ export default function MassPrograms() {
     setTimeout(() => setHighlightedSong(null), 2000);
   };
 
-  const previewSong = (songTitle) => {
-    setSongPreview(songTitle);
-    setTimeout(() => setSongPreview(null), 3000);
-  };
-
-  const getSongsArray = (program, fieldKey) => parseSongs(program[fieldKey]);
-
-  /* ---------------- DOWNLOADS ---------------- */
-  const generateShareImage = async (program) => {
-    const formattedDate = new Date(program.date).toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    });
-    const container = document.createElement("div");
-    container.style.cssText = `
-      padding: 30px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 20px;
-      max-width: 600px;
-      font-family: 'Arial', sans-serif;
-      color: white;
-    `;
-    const songsHtml = songFields.map((field) => {
-      const songsArray = parseSongs(program[field.key]);
-      if (songsArray.length === 0) return "";
-      return `
-        <div style="margin-bottom: 12px; background: rgba(255,255,255,0.15); padding: 10px; border-radius: 12px;">
-          <div style="font-weight: bold; margin-bottom: 6px; font-size: 14px;">${field.label}</div>
-          <div style="font-size: 12px;">
-            ${songsArray.map((song, idx) => idx === 0 ? song : `<div style="margin-top: 4px;">${idx + 1}. ${song}</div>`).join("")}
-          </div>
-        </div>`;
-    }).join("");
-    container.innerHTML = `
-      <div style="text-align: center; margin-bottom: 20px;">
-        <div style="font-size: 28px;">⛪</div>
-        <h1 style="font-size: 24px; margin: 8px 0;">MASS PROGRAM</h1>
-        <div style="font-size: 14px;">${formattedDate}</div>
-        <div style="font-size: 16px; font-weight: bold; margin-top: 8px;">${program.venue}</div>
-      </div>
-      ${songsHtml}
-      <div style="text-align: center; margin-top: 20px; font-size: 10px; opacity: 0.7;">
-        ZUCA SYSTEM GENERATED | ZUCA Portal
-      </div>`;
-    document.body.appendChild(container);
-    const canvas = await html2canvas(container, { scale: 2, backgroundColor: null });
-    document.body.removeChild(container);
-    return canvas.toDataURL("image/png");
-  };
-
+  /* ---------- downloads ---------- */
   const downloadAsImage = async (program) => {
     setGeneratingImage(true);
     showToast("Generating image...");
     try {
-      const formattedDate = new Date(program.date).toLocaleDateString("en-US", {
-        weekday: "long", year: "numeric", month: "long", day: "numeric",
-      });
-      const songsHtml = songFields.map((field) => {
-        const songsArray = getSongsArray(program, field.key);
-        if (songsArray.length === 0) return "";
-        let songsDisplay = "";
-        if (songsArray.length === 1) {
-          songsDisplay = `<div style="font-size: 13px; line-height: 1.4;">${songsArray[0]}</div>`;
-        } else {
-          songsDisplay = songsArray.map((song, idx) =>
-            `<div style="font-size: 13px; line-height: 1.4; margin-top: ${idx === 0 ? "0" : "6px"};">${idx + 1}. ${song}</div>`
-          ).join("");
-        }
-        return `
-          <div style="padding: 10px; background: #fafafa; border-radius: 8px; border-left: 3px solid #0f0f0f; margin-bottom: 8px; break-inside: avoid;">
-            <div style="font-weight: bold; color: #0f0f0f; margin-bottom: 6px; font-size: 13px;">${field.label}</div>
-            ${songsDisplay}
-          </div>`;
-      }).filter((h) => h).join("");
+      const formattedDate = formatLongDate(program.date);
+      const rows = songFields.map((field) => {
+        const arr = getSongsArray(program, field.key);
+        if (arr.length === 0) return "";
+        const disp = arr.length === 1 ? arr[0] : arr.map((s, i) => `${i + 1}. ${s}`).join("<br>");
+        return `<tr>
+          <td style="padding:12px 14px;border:1px solid #ddd;background:#f5f5f5;font-weight:bold;text-transform:uppercase;font-size:12px;vertical-align:top;width:30%;">${field.label}</td>
+          <td style="padding:12px 14px;border:1px solid #ddd;vertical-align:top;font-size:13px;">${disp}</td>
+        </tr>`;
+      }).filter(Boolean).join("");
 
       const container = document.createElement("div");
-      container.style.cssText = `padding: 20px; background: white; border-radius: 12px; max-width: 800px; margin: 0 auto; font-family: Arial, sans-serif;`;
+      container.style.cssText = `padding:24px;background:#fff;max-width:720px;margin:0 auto;font-family:Arial,sans-serif;`;
       container.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px;">
-          <h1 style="color: #0f0f0f; border-bottom: 3px solid #0f0f0f; padding-bottom: 10px; font-size: 24px; margin: 0;">MASS PROGRAM</h1>
-          <div style="color: #737373; margin-top: 12px; font-size: 14px;">${formattedDate}</div>
-          <div style="font-size: 16px; font-weight: bold; color: #0f0f0f; margin-top: 5px;">${program.venue}</div>
+        <div style="text-align:center;margin-bottom:20px;">
+          <h1 style="font-size:22px;margin:8px 0;letter-spacing:1px;">MASS PROGRAM</h1>
+          <div style="font-size:16px;font-weight:bold;margin-top:6px;">${formattedDate}</div>
+          <div style="font-size:13px;margin-top:4px;font-style:italic;">${program.venue}</div>
         </div>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">${songsHtml}</div>
-        <div style="margin-top: 25px; text-align: center; color: #737373; border-top: 1px solid #e5e5e5; padding-top: 12px; font-size: 10px;">ZUCA SYSTEM GENERATED | ZUCA PORTAL</div>`;
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr>
+              <th style="padding:10px;border:1px solid #ddd;background:#000;color:#fff;text-transform:uppercase;font-size:12px;letter-spacing:1px;">Time</th>
+              <th style="padding:10px;border:1px solid #ddd;background:#000;color:#fff;text-transform:uppercase;font-size:12px;letter-spacing:1px;">Song</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div style="margin-top:24px;text-align:center;font-size:10px;color:#999;letter-spacing:2px;">ZUCA PORTAL</div>`;
       document.body.appendChild(container);
       const canvas = await html2canvas(container, { scale: 2, backgroundColor: "#ffffff", logging: false });
       document.body.removeChild(container);
@@ -294,56 +305,36 @@ export default function MassPrograms() {
       link.download = `Mass_Program_${program.date}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
-      showToast("Image downloaded successfully");
-    } catch (error) {
-      console.error(error);
-      showToast("Failed to generate image");
-    } finally {
-      setGeneratingImage(false);
-    }
+      showToast("Image downloaded");
+    } catch (e) { console.error(e); showToast("Failed to generate image"); }
+    finally { setGeneratingImage(false); }
   };
 
   const downloadAsWord = (program) => {
-    const formattedDate = new Date(program.date).toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    });
-    const songsRows = songFields.map((field) => {
-      const songsArray = getSongsArray(program, field.key);
-      if (songsArray.length === 0) return "";
-      let songsDisplay = songsArray.length === 1
-        ? songsArray[0]
-        : songsArray.map((song, idx) => `${idx + 1}. ${song}`).join("<br>");
-      return `<tr><td style="padding: 10px 12px; border-bottom: 1px solid #e5e5e5; vertical-align: top; font-weight: 600; color: #0f0f0f; width: 30%; background: #fafafa;">${field.label}</td><td style="padding: 10px 12px; border-bottom: 1px solid #e5e5e5; vertical-align: top; line-height: 1.4;">${songsDisplay}</td></tr>`;
-    }).filter((h) => h).join("");
-    const content = `<!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Mass Program - ${program.date}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Calibri', 'Arial', sans-serif; max-width: 1000px; margin: 0 auto; padding: 40px 20px; background: white; }
-        @media print { body { padding: 0; margin: 0; } }
-        h1 { color: #0f0f0f; text-align: center; border-bottom: 3px solid #0f0f0f; padding-bottom: 15px; margin-bottom: 20px; font-size: 28px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .date { color: #737373; font-size: 16px; margin: 10px 0; }
-        .venue { font-size: 20px; font-weight: bold; color: #0f0f0f; margin-top: 5px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 30px; }
-        .footer { margin-top: 40px; text-align: center; color: #737373; font-size: 11px; border-top: 1px solid #e5e5e5; padding-top: 15px; }
-      </style>
-    </head>
-    <body>
-      <div>
-        <div class="header">
-          <h1>MASS PROGRAM</h1>
-          <div class="date">${formattedDate}</div>
-          <div class="venue">${program.venue}</div>
-        </div>
-        <table><tbody>${songsRows}</tbody></table>
-        <div class="footer">ZUCA SYSTEM GENERATED | ZUCA PORTAL</div>
+    const formattedDate = formatLongDate(program.date);
+    const rows = songFields.map((field) => {
+      const arr = getSongsArray(program, field.key);
+      if (arr.length === 0) return "";
+      const disp = arr.length === 1 ? arr[0] : arr.map((s, i) => `${i + 1}. ${s}`).join("<br>");
+      return `<tr>
+        <td style="padding:12px 14px;border:1px solid #ddd;background:#f5f5f5;font-weight:bold;text-transform:uppercase;font-size:12px;vertical-align:top;width:30%;">${field.label}</td>
+        <td style="padding:12px 14px;border:1px solid #ddd;vertical-align:top;font-size:13px;">${disp}</td>
+      </tr>`;
+    }).filter(Boolean).join("");
+    const content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Mass Program</title>
+      <style>body{font-family:Arial,sans-serif;padding:40px;max-width:800px;margin:0 auto;}
+      h1{text-align:center;letter-spacing:1px;font-size:24px;margin:8px 0;}
+      table{width:100%;border-collapse:collapse;margin-top:20px;}
+      th{background:#000;color:#fff;padding:10px;border:1px solid #ddd;text-transform:uppercase;font-size:12px;letter-spacing:1px;}</style>
+      </head><body>
+      <div style="text-align:center;">
+        <h1>MASS PROGRAM</h1>
+        <div style="font-size:16px;font-weight:bold;">${formattedDate}</div>
+        <div style="font-size:13px;font-style:italic;margin-top:4px;">${program.venue}</div>
       </div>
-    </body>
-    </html>`;
+      <table><thead><tr><th>Time</th><th>Song</th></tr></thead><tbody>${rows}</tbody></table>
+      <div style="text-align:center;font-size:10px;color:#999;letter-spacing:2px;margin-top:24px;">ZUCA PORTAL</div>
+      </body></html>`;
     const blob = new Blob([content], { type: "application/msword" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -354,49 +345,32 @@ export default function MassPrograms() {
     showToast("Word document downloaded");
   };
 
-  const downloadAsPDF = (program) => {
-    const formattedDate = new Date(program.date).toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    });
-    const songsRows = songFields.map((field) => {
-      const songsArray = getSongsArray(program, field.key);
-      if (songsArray.length === 0) return "";
-      let songsDisplay = songsArray.length === 1
-        ? songsArray[0]
-        : songsArray.map((song, idx) => `${idx + 1}. ${song}`).join("<br>");
-      return `<div class="song-row"><div class="song-label">${field.label}</div><div class="song-value">${songsDisplay}</div></div>`;
-    }).filter((h) => h).join("");
-    const content = `<!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Mass Program - ${program.date}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Times New Roman', serif; max-width: 900px; margin: 0 auto; padding: 40px 20px; background: white; }
-        @media print { body { padding: 0; margin: 0; } }
-        h1 { color: #0f0f0f; text-align: center; border-bottom: 2px solid #0f0f0f; padding-bottom: 12px; margin-bottom: 20px; font-size: 26px; }
-        .header { text-align: center; margin-bottom: 35px; }
-        .date { color: #262626; font-size: 14px; margin: 8px 0; }
-        .venue { font-size: 18px; font-weight: bold; margin-top: 5px; }
-        .song-row { display: flex; margin: 10px 0; padding: 8px; border-bottom: 1px solid #e5e5e5; break-inside: avoid; }
-        .song-label { font-weight: bold; width: 200px; flex-shrink: 0; }
-        .song-value { flex: 1; line-height: 1.4; }
-        .footer { margin-top: 50px; text-align: center; font-size: 11px; color: #737373; border-top: 1px solid #e5e5e5; padding-top: 15px; }
-      </style>
-    </head>
-    <body>
-      <div>
-        <div class="header">
-          <h1>MASS PROGRAM</h1>
-          <div class="date">${formattedDate}</div>
-          <div class="venue">${program.venue}</div>
-        </div>
-        ${songsRows}
-        <div class="footer">ZUCA SYSTEM GENERATED | ZUCA PORTAL</div>
+  const downloadAsHTML = (program) => {
+    const formattedDate = formatLongDate(program.date);
+    const rows = songFields.map((field) => {
+      const arr = getSongsArray(program, field.key);
+      if (arr.length === 0) return "";
+      const disp = arr.length === 1 ? arr[0] : arr.map((s, i) => `${i + 1}. ${s}`).join("<br>");
+      return `<tr>
+        <td style="padding:12px 14px;border:1px solid #ddd;background:#f5f5f5;font-weight:bold;text-transform:uppercase;font-size:12px;vertical-align:top;width:30%;">${field.label}</td>
+        <td style="padding:12px 14px;border:1px solid #ddd;vertical-align:top;font-size:13px;">${disp}</td>
+      </tr>`;
+    }).filter(Boolean).join("");
+    const content = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Mass Program</title>
+      <style>body{font-family:Arial,sans-serif;padding:40px;max-width:800px;margin:0 auto;}
+      h1{text-align:center;letter-spacing:1px;font-size:24px;margin:8px 0;}
+      table{width:100%;border-collapse:collapse;margin-top:20px;}
+      th{background:#000;color:#fff;padding:10px;border:1px solid #ddd;text-transform:uppercase;font-size:12px;letter-spacing:1px;}</style>
+      </head><body>
+      <div style="text-align:center;">
+      
+        <h1>MASS PROGRAM</h1>
+        <div style="font-size:16px;font-weight:bold;">${formattedDate}</div>
+        <div style="font-size:13px;font-style:italic;margin-top:4px;">${program.venue}</div>
       </div>
-    </body>
-    </html>`;
+      <table><thead><tr><th>Time</th><th>Song</th></tr></thead><tbody>${rows}</tbody></table>
+      <div style="text-align:center;font-size:10px;color:#999;letter-spacing:2px;margin-top:24px;">ZUCA PORTAL</div>
+      </body></html>`;
     const blob = new Blob([content], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -407,1053 +381,1520 @@ export default function MassPrograms() {
     showToast("HTML saved - use Ctrl+P to save as PDF");
   };
 
-  /* ---------------- SHARE ---------------- */
-  const generateShareLink = (program) =>
-    `${window.location.origin}/mass-programs?program=${program.id}`;
+  const printProgram = (program) => {
+    const formattedDate = formatLongDate(program.date);
+    const rows = songFields.map((field) => {
+      const arr = getSongsArray(program, field.key);
+      if (arr.length === 0) return "";
+      const disp = arr.length === 1 ? arr[0] : arr.map((s, i) => `${i + 1}. ${s}`).join("<br>");
+      return `<tr>
+        <td style="padding:12px 14px;border:1px solid #ddd;background:#f5f5f5;font-weight:bold;text-transform:uppercase;font-size:12px;vertical-align:top;width:30%;">${field.label}</td>
+        <td style="padding:12px 14px;border:1px solid #ddd;vertical-align:top;font-size:13px;">${disp}</td>
+      </tr>`;
+    }).filter(Boolean).join("");
+    const w = window.open("", "_blank");
+    w.document.write(`<!DOCTYPE html><html><head><title>Mass Program</title>
+      <style>body{font-family:Arial,sans-serif;padding:40px;max-width:800px;margin:0 auto;}
+      h1{text-align:center;letter-spacing:1px;font-size:24px;margin:8px 0;}
+      table{width:100%;border-collapse:collapse;margin-top:20px;}
+      th{background:#000;color:#fff;padding:10px;border:1px solid #ddd;text-transform:uppercase;font-size:12px;letter-spacing:1px;}</style>
+      </head><body>
+      <div style="text-align:center;">
+        
+        <h1>MASS PROGRAM</h1>
+        <div style="font-size:16px;font-weight:bold;">${formattedDate}</div>
+        <div style="font-size:13px;font-style:italic;margin-top:4px;">${program.venue}</div>
+      </div>
+      <table><thead><tr><th>Time</th><th>Song</th></tr></thead><tbody>${rows}</tbody></table>
+      <div style="text-align:center;font-size:10px;color:#999;letter-spacing:2px;margin-top:24px;">ZUCA PORTAL</div>
+      </body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+    showToast("Print dialog opened");
+  };
+
+  /* ---------- share ---------- */
+  const generateShareLink = (program) => `${window.location.origin}/mass-programs?program=${program.id}`;
 
   const shareLink = (program, platform) => {
     const link = generateShareLink(program);
-    const formattedDate = new Date(program.date).toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    });
+    const formattedDate = formatLongDate(program.date);
     const message = `Mass Program\n${formattedDate}\n${program.venue}\n\nView full program: ${link}`;
     if (platform === "whatsapp") window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
     else if (platform === "telegram") window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(`Mass Program - ${formattedDate}`)}`, "_blank");
     else if (platform === "twitter") window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`Mass Program ${formattedDate}`)}&url=${encodeURIComponent(link)}`, "_blank");
     else if (platform === "facebook") window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`, "_blank");
     else if (platform === "email") window.open(`mailto:?subject=Mass Program - ${formattedDate}&body=${encodeURIComponent(message)}`, "_blank");
-    else {
-      navigator.clipboard.writeText(link);
-      showToast("Link copied to clipboard");
-    }
+    else { navigator.clipboard.writeText(link); showToast("Link copied"); }
   };
 
   const copyLink = (program) => {
-    const link = generateShareLink(program);
-    navigator.clipboard.writeText(link);
-    showToast("Link copied to clipboard");
+    navigator.clipboard.writeText(generateShareLink(program));
+    showToast("Link copied");
   };
 
-  const printProgram = (program) => {
-    const formattedDate = new Date(program.date).toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    });
-    const songsRows = songFields.map((field) => {
-      const songsArray = getSongsArray(program, field.key);
-      if (songsArray.length === 0) return "";
-      const songsDisplay = songsArray.length === 1
-        ? songsArray[0]
-        : songsArray.map((song, idx) => `${idx + 1}. ${song}`).join("<br>");
-      return `<tr><td style="padding: 10px; border-bottom: 1px solid #e5e5e5; vertical-align: top; font-weight: bold; width: 200px;">${field.label}</td><td style="padding: 10px; border-bottom: 1px solid #e5e5e5; vertical-align: top;">${songsDisplay}</td></tr>`;
-    }).filter((h) => h).join("");
-    const printWindow = window.open("", "_blank");
-    printWindow.document.write(`<!DOCTYPE html>
-      <html><head><title>Mass Program - ${program.date}</title>
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Times New Roman', serif; padding: 40px 20px; max-width: 900px; margin: 0 auto; }
-        h1 { text-align: center; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 20px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .date { color: #333; margin: 8px 0; }
-        .venue { font-size: 18px; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .footer { margin-top: 40px; text-align: center; border-top: 1px solid #ddd; padding-top: 15px; font-size: 11px; }
-        @media print { body { padding: 0; } }
-      </style></head><body>
-        <div class="header"><h1>MASS PROGRAM</h1><div class="date">${formattedDate}</div><div class="venue">${program.venue}</div></div>
-        <table>${songsRows}</table>
-        <div class="footer">ZUCA SYSTEM GENERATED | ZUCA PORTAL</div>
-      </body></html>`);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    showToast("Print dialog opened");
-  };
-
-  const showToast = (message) => {
-    const toast = document.createElement("div");
-    toast.textContent = message;
-    toast.style.cssText = toastStyle;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-  };
-
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    if (date.toDateString() === today.toDateString()) return "Today";
-    if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  const toggleExpand = (id) =>
-    setExpandedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-
-  const toggleCollapse = (id) =>
-    setCollapsedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-
-  const toggleFavorite = (id) => {
-    const newFavorites = favorites.includes(id)
-      ? favorites.filter((x) => x !== id)
-      : [...new Set([...favorites, id])];
-    setFavorites(newFavorites);
-    showToast(newFavorites.includes(id) ? "Added to favorites" : "Removed from favorites");
-  };
-
-  /* ---------------- FILTERS ---------------- */
+  /* ---------- filters ---------- */
   const filteredPrograms = useMemo(() => {
     let filtered = [...programs];
     if (searchTerm) {
       filtered = filtered.filter((p) =>
-        songFields.some((f) => {
-          const songs = parseSongs(p[f.key]);
-          return songs.some((song) => song?.toLowerCase().includes(searchTerm.toLowerCase()));
-        }) || p.venue.toLowerCase().includes(searchTerm.toLowerCase())
+        songFields.some((f) => parseSongs(p[f.key]).some((song) => song?.toLowerCase().includes(searchTerm.toLowerCase()))) ||
+        p.venue.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     if (selectedVenue !== "all") filtered = filtered.filter((p) => p.venue === selectedVenue);
-    if (showFavoritesOnly) filtered = filtered.filter((p) => favorites.includes(p.id));
     filtered.sort((a, b) => {
-      const dateA = new Date(a.date).getTime();
-      const dateB = new Date(b.date).getTime();
-      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      return sortOrder === "desc" ? db - da : da - db;
     });
     return filtered;
-  }, [programs, searchTerm, selectedVenue, showFavoritesOnly, favorites, sortOrder]);
+  }, [programs, searchTerm, selectedVenue, sortOrder]);
 
   const venues = useMemo(
-    () => ["all", ...new Set(programs.map((p) => p.venue))],
+    () => ["all", ...new Set(programs.map((p) => p.venue).filter(Boolean))],
     [programs]
   );
 
-  const handleDownloadClick = (p, type) => {
-    if (type === "word") downloadAsWord(p);
-    else if (type === "pdf") downloadAsPDF(p);
-    else if (type === "image") downloadAsImage(p);
-    setShowDownloadMenu(null);
-  };
+  const coverStyle = cover
+    ? { backgroundImage: `url(${cover})`, backgroundSize: "cover", backgroundPosition: "center" }
+    : { background: themeBg(theme) };
 
-  /* ---------------- LOADING (unchanged) ---------------- */
-  if (loading) {
+  /* =========================================================
+     INDEX VIEW
+  ========================================================= */
+  if (view === "index") {
+    const today = filteredPrograms.filter((p) => isToday(p.date));
+    const upcoming = filteredPrograms.filter((p) => !isPast(p.date) && !isToday(p.date));
+    const past = filteredPrograms.filter((p) => isPast(p.date) && !isToday(p.date));
+    const userFirst = user?.fullName?.split(" ")[0] || "friend";
+
     return (
-      <div style={loadingContainer}>
-        <motion.div
-          animate={{ rotate: 360, scale: [1, 1.2, 1] }}
-          transition={{ duration: 2, repeat: Infinity }}
-          style={loadingSpinner}
-        >
-          {logo ? <img src={logo} alt="Loading..." style={{ width: 40, height: 60 }} /> : <FaChurch size={60} />}
-        </motion.div>
-        <p style={loadingText}>Preparing the liturgy...</p>
-        <p style={loadingSubtext}>Loading hymns and programs</p>
+      <div className="mp">
+        {/* HERO */}
+        <div className="mp-hero">
+          {cover
+            ? <img className="mp-cover" src={cover} alt="" />
+            : <div className="mp-cover" style={{ background: themeBg(theme) }} />}
+          <div className="mp-shade" />
+          <button className="mp-hero-back" onClick={() => navigate(-1)}>
+            <FiArrowLeft size={14} />
+            <span>Back</span>
+          </button>
+          <div className="mp-hero-copy">
+            <div className="mp-hero-eyebrow">ZETECH UNIVERSITY CATHOLIC ACTION</div>
+            <h1>{getGreeting()}, {userFirst}</h1>
+            <p>Browse every mass program and tap a song to open its lyrics</p>
+          </div>
+        </div>
+
+        <div className="mp-shell">
+          {/* TOOLBAR */}
+          <div className="mp-toolbar">
+            <div className="mp-search">
+              <FiSearch size={15} />
+              <input
+                type="text"
+                placeholder="Search hymns or venue..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm("")} className="mp-search-x" aria-label="Clear">
+                  <FiX size={13} />
+                </button>
+              )}
+            </div>
+
+            {venues.length > 2 && (
+              <select
+                className="mp-select"
+                value={selectedVenue}
+                onChange={(e) => setSelectedVenue(e.target.value)}
+              >
+                {venues.map((v) => (
+                  <option key={v} value={v}>
+                    {v === "all" ? "All Venues" : v.length > 22 ? v.substring(0, 22) + "..." : v}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <button
+              className="mp-tool"
+              onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+            >
+              <FiClock size={15} />
+              <span className="mp-tool-label">{sortOrder === "desc" ? "Newest" : "Oldest"}</span>
+            </button>
+          </div>
+
+          {/* CONTENT */}
+          {loading && programs.length === 0 ? (
+            <div className="mp-list">
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </div>
+          ) : filteredPrograms.length === 0 ? (
+            <div className="mp-empty">
+              <div className="mp-empty-icon">
+                <FiInbox size={28} />
+              </div>
+              <b>No programs found</b>
+              <span>
+                {searchTerm || selectedVenue !== "all"
+                  ? "Try a different search or clear your filters"
+                  : "Check back soon for the next mass schedule"}
+              </span>
+              {(searchTerm || selectedVenue !== "all") && (
+                <button
+                  className="mp-empty-action"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedVenue("all");
+                  }}
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {today.length > 0 && (
+                <ProgramGroup
+                  title="Today"
+                  icon={<FiSun size={12} />}
+                  items={today}
+                  onOpen={openProgram}
+                  coverStyle={coverStyle}
+                />
+              )}
+              {upcoming.length > 0 && (
+                <ProgramGroup
+                  title="Upcoming"
+                  icon={<FiCalendar size={12} />}
+                  items={upcoming}
+                  onOpen={openProgram}
+                  coverStyle={coverStyle}
+                />
+              )}
+              {past.length > 0 && (
+                <ProgramGroup
+                  title="Past"
+                  icon={<FiClock size={12} />}
+                  items={past}
+                  onOpen={openProgram}
+                  coverStyle={coverStyle}
+                  muted
+                />
+              )}
+            </>
+          )}
+
+          <footer className="mp-index-foot">ZUCA Portal</footer>
+        </div>
+        <style>{mainCSS}</style>
       </div>
     );
   }
 
-  /* ---------------- RENDER ---------------- */
+  /* =========================================================
+     PROGRAM VIEW — THE TABLE
+  ========================================================= */
+  const p = activeProgram;
+  if (!p) return null;
+
+  const presentRows = songFields
+    .map((f) => ({ ...f, songs: parseSongs(p[f.key]) }))
+    .filter((f) => f.songs.length > 0);
+
+  const totalHymns = presentRows.reduce((a, r) => a + r.songs.length, 0);
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mp-page">
-      <div className="mp-container">
-        {/* HEADER */}
-        <div className="mp-header">
-          <div className="mp-header-top">
-            <div className="mp-header-left">
-              <div className="mp-logo-box">
-                {logo ? <img src={logo} alt="Logo" className="mp-logo" /> : <FaChurch size={24} />}
-              </div>
-              <div>
-                <h1 className="mp-title">Mass Programs</h1>
-                <p className="mp-subtitle">{stats.totalHymns} hymns · {stats.venues} venues</p>
-              </div>
-            </div>
-          </div>
+    <div className="mp">
+      <div className="mp-topbar">
+        <button className="mp-topbar-btn" onClick={closeProgram} aria-label="Back">
+          <FiArrowLeft size={16} />
+          <span>All programs</span>
+        </button>
 
-          {/* Compact stats */}
-          <div className="mp-stats">
-            <button className="mp-stat" onClick={() => setShowFavoritesOnly(false)}>
-              <div className="mp-stat-value">{stats.total}</div>
-              <div className="mp-stat-label">Programs</div>
-            </button>
-            <button className="mp-stat">
-              <div className="mp-stat-value">{stats.upcoming}</div>
-              <div className="mp-stat-label">Upcoming</div>
-            </button>
-            <button className="mp-stat">
-              <div className="mp-stat-value">{stats.venues}</div>
-              <div className="mp-stat-label">Venues</div>
-            </button>
-            <button
-              className={`mp-stat ${showFavoritesOnly ? "active" : ""}`}
-              onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-            >
-              <div className="mp-stat-value">
-                <FiHeart style={{ fill: showFavoritesOnly ? "currentColor" : "none" }} />
-              </div>
-              <div className="mp-stat-label">Favorites</div>
-            </button>
-          </div>
-
-          {/* Search */}
-          <div className="mp-search-wrap">
-            <FiSearch className="mp-search-icon" size={14} />
-            <input
-              type="text"
-              placeholder="Search hymns or venue..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="mp-search-input"
-            />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm("")} className="mp-search-clear">✕</button>
-            )}
-          </div>
-
-          {/* Filters */}
-          <div className="mp-filters">
-            <select
-              value={selectedVenue}
-              onChange={(e) => setSelectedVenue(e.target.value)}
-              className="mp-select"
-            >
-              {venues.map((v) => (
-                <option key={v} value={v}>
-                  {v === "all" ? "All Venues" : v.length > 20 ? v.substring(0, 20) + "..." : v}
-                </option>
-              ))}
-            </select>
-
-            <button
-              onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
-              className="mp-btn"
-            >
-              <FiClock size={12} />
-              {sortOrder === "desc" ? "Newest" : "Oldest"}
-            </button>
-
-            <button
-              onClick={() => setViewMode(viewMode === "compact" ? "detailed" : "compact")}
-              className="mp-btn"
-            >
-              <FiEye size={12} />
-              {viewMode === "compact" ? "Detailed" : "Compact"}
-            </button>
-          </div>
-
-          {/* Results */}
-          <div className="mp-results">
-            <strong>{filteredPrograms.length}</strong> programs ·
-            <strong>
-              {filteredPrograms.reduce(
-                (acc, p) => acc + songFields.reduce((sum, f) => sum + parseSongs(p[f.key]).length, 0),
-                0
-              )}
-            </strong> hymns
-          </div>
+        <div className="mp-topbar-right">
+          <button className="mp-topbar-icon" onClick={() => setShowMenu(true)} aria-label="More">
+            <FiMoreHorizontal size={18} />
+          </button>
         </div>
+      </div>
 
-        {/* PROGRAMS */}
-        <div className="mp-list">
-          <AnimatePresence>
-            {filteredPrograms.map((p) => {
-              const isExpanded = expandedIds.includes(p.id);
-              const isCollapsed = collapsedIds.includes(p.id);
-              const isFavorite = favorites.includes(p.id);
-              const displayFields = isMobile && !isExpanded ? mobileCompactFields : songFields;
-              const hasTime = p.time && p.time !== "To be announced";
+      {/* Poster header */}
+      <motion.header
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className="mp-program-head"
+      >
+        <h1 className="mp-program-title">Mass Program</h1>
+        <div className="mp-program-date">{formatLongDate(p.date)}</div>
+        <div className="mp-program-venue">{p.venue}</div>
+        <div className="mp-program-meta">
+          {p.time && p.time !== "To be announced" && (
+            <span><FiClock size={12} /> {p.time}</span>
+          )}
+          <span><FiMusic size={12} /> {totalHymns} hymn{totalHymns !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="mp-program-hint">
+  Tap any song to open its lyrics
+</div>
 
-              return (
-                <motion.div
-                  key={p.id}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className={`mp-card ${isFavorite ? "fav" : ""}`}
-                >
-                  {/* Card header */}
-                  <div className="mp-card-header" onClick={() => toggleCollapse(p.id)}>
-                    <div className="mp-card-header-left">
-                      <div className="mp-date-badge">
-                        <span className="mp-date-day">{new Date(p.date).getDate()}</span>
-                        <span className="mp-date-month">
-                          {new Date(p.date).toLocaleString("default", { month: "short" })}
-                        </span>
-                      </div>
-                      <div className="mp-card-info">
-                        <div className="mp-card-title-row">
-                          <span className="mp-card-date">{formatDate(p.date)}</span>
-                          {new Date(p.date).toDateString() === new Date().toDateString() && (
-                            <span className="mp-today-chip">Today</span>
+      </motion.header>
+
+      {/* The table — clean rows, no heavy borders */}
+      <motion.article
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25, delay: 0.05 }}
+        className="mp-program"
+      >
+        <div className="mp-table-wrap">
+          <div className="mp-table-head">
+            <div className="mp-th mp-th-sched">Time</div>
+            <div className="mp-th mp-th-song">Song</div>
+          </div>
+
+          <div className="mp-table-body">
+            {presentRows.map((row, rIdx) => (
+              <div key={row.key} className={`mp-table-row ${rIdx % 2 === 1 ? "alt" : ""}`}>
+                <div className="mp-td mp-td-sched">
+                  <span className="mp-sched-label">{row.label}</span>
+                </div>
+                <div className="mp-td mp-td-song">
+                  {row.songs.map((song, idx) => {
+                    const songKey = `${p.id}-${row.key}-${idx}`;
+                    const isHL = highlightedSong === songKey;
+                    const note = songNotes[songKey];
+                    const isOpening = openingSong === song;
+                    return (
+                      <div
+                        key={idx}
+                        className={`mp-song-line ${isHL ? "hl" : ""}`}
+                        onClick={(e) => !isOpening && navigateToHymn(song, e)}
+                        title="Tap to open lyrics"
+                      >
+                        <div className="mp-song-main">
+                          {row.songs.length > 1 && (
+                            <span className="mp-song-num">{idx + 1}</span>
+                          )}
+                          {isOpening ? (
+                            <span className="mp-song-loading">
+                              <span className="mp-song-spinner" />
+                              Opening...
+                            </span>
+                          ) : (
+                            <span className="mp-song-name">{song}</span>
                           )}
                         </div>
-                        <div className="mp-card-meta">
-                          <FiMapPin size={11} />
-                          <span>{p.venue.length > 25 ? p.venue.substring(0, 25) + "..." : p.venue}</span>
+                        <div className="mp-song-tools">
+                          <button
+                            className="mp-song-tool"
+                            onClick={(e) => { e.stopPropagation(); previewSong(song); }}
+                            title="Preview"
+                          >
+                            <BsPlayCircle size={13} />
+                          </button>
+                          <button
+                            className="mp-song-tool"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addSongNote(p.id, row.key, idx, note);
+                            }}
+                            title="Add note"
+                          >
+                            <FaRegKeyboard size={11} />
+                          </button>
+                          <button
+                            className="mp-song-tool"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(song);
+                              highlightSong(p.id, `${row.key}-${idx}`);
+                              showToast("Copied: " + song.substring(0, 30) + "...");
+                            }}
+                            title="Copy"
+                          >
+                            <FiCopy size={11} />
+                          </button>
                         </div>
-                        {hasTime && (
-                          <div className="mp-card-meta">
-                            <FiClock size={11} />
-                            <span>{p.time}</span>
+                        {note && (
+                          <div className="mp-song-note">
+                            <MdOutlineFormatQuote size={10} />
+                            {note}
                           </div>
                         )}
                       </div>
-                    </div>
-                    <div className="mp-card-header-right">
-                      <button
-                        className="mp-icon-btn"
-                        onClick={(e) => { e.stopPropagation(); toggleFavorite(p.id); }}
-                      >
-                        <FiHeart
-                          size={16}
-                          style={{
-                            color: isFavorite ? "#dc2626" : "#a3a3a3",
-                            fill: isFavorite ? "#dc2626" : "none",
-                          }}
-                        />
-                      </button>
-                      <div className="mp-chevron">
-                        {isCollapsed ? <FiChevronDown size={16} /> : <FiChevronUp size={16} />}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Songs grid */}
-                  {!isCollapsed && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mp-songs">
-                      {displayFields.map((f) => {
-                        const songsArray = parseSongs(p[f.key]);
-                        if (songsArray.length === 0) return null;
-                        const frequency = getSongFrequency(f.key);
-                        const uniqueSongs = getUniqueSongs(f.key).length;
-
-                        return songsArray.map((song, idx) => {
-                          const songKey = `${p.id}-${f.key}-${idx}`;
-                          const isHighlighted = highlightedSong === songKey;
-                          const note = songNotes[songKey] || songNotes[`${p.id}-${f.key}`];
-                          const displayLabel = idx === 0 ? f.label : `${f.label} ${idx + 1}`;
-                          const isOpening = openingSong === song;
-
-                          return (
-                            <motion.div
-                              key={`${f.key}-${idx}`}
-                              className={`mp-song ${isHighlighted ? "highlighted" : ""}`}
-                              whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(15,15,15,0.08)" }}
-                            >
-                              {isOpening && (
-                                <div className="mp-song-loading">
-                                  <div className="mp-song-spinner" />
-                                  <span>Opening lyrics...</span>
-                                </div>
-                              )}
-
-                              <div className="mp-song-head">
-                                <div className="mp-song-label">{displayLabel}</div>
-                                {viewMode === "detailed" && idx === 0 && (
-                                  <div className="mp-song-meta">
-                                    <span title={`Used in ${frequency} programs`}>
-                                      <FiEye size={9} /> {frequency}
-                                    </span>
-                                    <span title={`${uniqueSongs} unique songs`}>
-                                      <BsMusicNoteList size={9} /> {uniqueSongs}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="mp-song-value-wrap">
-  <div
-    className="mp-song-value"
-    onClick={(e) => !isOpening && navigateToHymn(song, e)}
-    title="Click to view lyrics in hymn book"
-  >
-    {song}
-    <span className="mp-song-view-icon">   <FaEye/> </span>
-  </div>
-  <div className="mp-song-hint">Tap to open lyrics</div>
-  {viewMode === "detailed" && idx === 0 && f.description && (
-    <div className="mp-song-desc">{f.description}</div>
-  )}
-</div>
-
-                              <div className="mp-song-actions">
-                                <button
-                                  className="mp-song-action"
-                                  onClick={(e) => { e.stopPropagation(); previewSong(song); }}
-                                  title="Preview song"
-                                >
-                                  <BsPlayCircle size={13} />
-                                </button>
-                                <button
-                                  className="mp-song-action"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    addSongNote(p.id, f.key, idx, note);
-                                  }}
-                                  title="Add note"
-                                >
-                                  <FaRegKeyboard size={11} />
-                                </button>
-                                <button
-                                  className="mp-song-action"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigator.clipboard.writeText(song);
-                                    highlightSong(p.id, `${f.key}-${idx}`);
-                                    showToast("Copied: " + song.substring(0, 30) + "...");
-                                  }}
-                                  title="Copy to clipboard"
-                                >
-                                  <FiCopy size={11} />
-                                </button>
-                              </div>
-
-                              {note && (
-                                <div className="mp-song-note">
-                                  <MdOutlineFormatQuote size={10} />
-                                  {note}
-                                </div>
-                              )}
-                            </motion.div>
-                          );
-                        });
-                      })}
-
-                      {isMobile && !isExpanded && (
-                        <button
-                          className="mp-expand-btn"
-                          onClick={() => toggleExpand(p.id)}
-                        >
-                          + {songFields.length - mobileCompactFields.length} more sections
-                        </button>
-                      )}
-                    </motion.div>
-                  )}
-
-                  {/* Action buttons */}
-                  {!isCollapsed && (
-                    <div className="mp-actions">
-                      <button className="mp-action" onClick={() => copyLink(p)}>
-                        <FiCopy size={13} />
-                        <span>Copy link</span>
-                      </button>
-                      <button
-                        className="mp-action"
-                        style={{ background: "#25D366", color: "#ffffff", borderColor: "#25D366" }}
-                        onClick={() => shareLink(p, "whatsapp")}
-                      >
-                        <BsWhatsapp size={13} />
-                        <span>WhatsApp</span>
-                      </button>
-                      <button className="mp-action" onClick={() => setShareModal(p)}>
-                        <FiShare2 size={13} />
-                        <span>Share</span>
-                      </button>
-                      <button className="mp-action" onClick={() => printProgram(p)}>
-                        <FiPrinter size={13} />
-                        <span>Print</span>
-                      </button>
-
-                      <div className="mp-download-wrap" ref={downloadMenuRef}>
-                        <button
-                          className="mp-action mp-action-wide"
-                          onClick={() =>
-                            setShowDownloadMenu(showDownloadMenu === p.id ? null : p.id)
-                          }
-                        >
-                          <FiDownload size={13} />
-                          <span>Save as...</span>
-                          <FiChevronDown size={10} />
-                        </button>
-                        <AnimatePresence>
-                          {showDownloadMenu === p.id && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -6 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: -6 }}
-                              className="mp-download-menu"
-                            >
-                              <button onClick={() => handleDownloadClick(p, "word")}>
-                                <FaFileWord size={13} /> Word (.doc)
-                              </button>
-                              <button onClick={() => handleDownloadClick(p, "pdf")}>
-                                <FaFilePdf size={13} /> HTML / PDF
-                              </button>
-                              <button
-                                onClick={() => handleDownloadClick(p, "image")}
-                                disabled={generatingImage}
-                              >
-                                <BsFileImage size={13} /> Image (.png)
-                              </button>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Song preview toast */}
-        <AnimatePresence>
-          {songPreview && (
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 30 }}
-              className="mp-preview-toast"
-            >
-              <BsMusicNoteBeamed size={14} />
-              <span>Previewing: {songPreview}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <footer className="mp-program-foot">ZUCA PORTAL</footer>
+      </motion.article>
 
-        {/* Share modal */}
-        <AnimatePresence>
-          {shareModal && (
+      {/* Overflow menu */}
+      <AnimatePresence>
+        {showMenu && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mp-sheet-overlay"
+            onClick={() => setShowMenu(false)}
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="mp-modal-overlay"
-              onClick={() => setShareModal(null)}
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="mp-sheet-menu"
+              onClick={(e) => e.stopPropagation()}
             >
-              <motion.div
-                initial={{ scale: 0.94, y: 12 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.94, y: 12 }}
-                className="mp-modal"
-                onClick={(e) => e.stopPropagation()}
+              <div className="mp-sheet-menu-head">
+                <h3>Program options</h3>
+                <button onClick={() => setShowMenu(false)} aria-label="Close">
+                  <FiX size={16} />
+                </button>
+              </div>
+
+              <button onClick={() => { setShowMenu(false); setShareModal(p); }}>
+                <FiShare2 size={17} /> Share
+              </button>
+              <button onClick={() => { setShowMenu(false); shareLink(p, "whatsapp"); }}>
+                <BsWhatsapp size={17} color="#25D366" /> WhatsApp
+              </button>
+              <button onClick={() => { setShowMenu(false); copyLink(p); }}>
+                <FiCopy size={17} /> Copy link
+              </button>
+              <div className="mp-sheet-sep" />
+              <button onClick={() => { setShowMenu(false); printProgram(p); }}>
+                <FiPrinter size={17} /> Print
+              </button>
+              <button onClick={() => { setShowMenu(false); downloadAsHTML(p); }}>
+                <FaFilePdf size={17} color="#dc2626" /> Save as PDF
+              </button>
+              <button onClick={() => { setShowMenu(false); downloadAsWord(p); }}>
+                <FaFileWord size={17} color="#1d4ed8" /> Save as Word
+              </button>
+              <button
+                onClick={() => { setShowMenu(false); downloadAsImage(p); }}
+                disabled={generatingImage}
               >
-                <div className="mp-modal-head">
-                  <h3>Share mass program</h3>
-                  <button className="mp-modal-close" onClick={() => setShareModal(null)}>
-                    ✕
-                  </button>
-                </div>
-
-                <div className="mp-link-box">
-                  <input
-                    type="text"
-                    value={generateShareLink(shareModal)}
-                    readOnly
-                    onClick={() => copyLink(shareModal)}
-                  />
-                  <button onClick={() => copyLink(shareModal)}>
-                    <FiCopy size={14} />
-                  </button>
-                </div>
-
-                <div className="mp-modal-options">
-                  <button onClick={() => shareLink(shareModal, "whatsapp")}>
-                    <BsWhatsapp size={20} color="#25D366" />
-                    <span>WhatsApp</span>
-                  </button>
-                  <button onClick={() => shareLink(shareModal, "telegram")}>
-                    <FaTelegramPlane size={20} color="#0088cc" />
-                    <span>Telegram</span>
-                  </button>
-                  <button onClick={() => shareLink(shareModal, "twitter")}>
-                    <BsTwitter size={20} color="#1DA1F2" />
-                    <span>Twitter</span>
-                  </button>
-                  <button onClick={() => shareLink(shareModal, "facebook")}>
-                    <FaFacebook size={20} color="#1877F2" />
-                    <span>Facebook</span>
-                  </button>
-                  <button onClick={() => shareLink(shareModal, "email")}>
-                    <FiMail size={20} />
-                    <span>Email</span>
-                  </button>
-                  <button onClick={() => shareLink(shareModal, "copy")}>
-                    <FiCopy size={20} />
-                    <span>Copy link</span>
-                  </button>
-                </div>
-              </motion.div>
+                <BsFileImage size={17} /> Save as image
+              </button>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Preview toast */}
+      <AnimatePresence>
+        {songPreview && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="mp-preview-toast"
+          >
+            <BsMusicNoteBeamed size={14} />
+            <span>Previewing: {songPreview}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Share modal */}
+      <AnimatePresence>
+        {shareModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mp-overlay"
+            onClick={() => setShareModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.97, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ duration: 0.16 }}
+              className="mp-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mp-modal-head">
+                <h3>Share mass program</h3>
+                <button className="mp-topbar-icon" onClick={() => setShareModal(null)} aria-label="Close">
+                  <FiX size={16} />
+                </button>
+              </div>
+
+              <div className="mp-link-box">
+                <input
+                  type="text"
+                  value={generateShareLink(shareModal)}
+                  readOnly
+                  onClick={() => copyLink(shareModal)}
+                />
+                <button onClick={() => copyLink(shareModal)}>
+                  <FiCopy size={14} />
+                </button>
+              </div>
+
+              <div className="mp-modal-options">
+                <button onClick={() => shareLink(shareModal, "whatsapp")}>
+                  <BsWhatsapp size={20} color="#25D366" /><span>WhatsApp</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "telegram")}>
+                  <FaTelegramPlane size={20} color="#0088cc" /><span>Telegram</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "twitter")}>
+                  <BsTwitter size={20} color="#1DA1F2" /><span>Twitter</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "facebook")}>
+                  <FaFacebook size={20} color="#1877F2" /><span>Facebook</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "email")}>
+                  <FiMail size={20} /><span>Email</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "copy")}>
+                  <FiCopy size={20} /><span>Copy link</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <style>{mainCSS}</style>
-    </motion.div>
+    </div>
+  );
+}
+
+/* =========================================================
+   ProgramGroup
+========================================================= */
+function ProgramGroup({ title, icon, items, onOpen, coverStyle, muted }) {
+  return (
+    <section className={`mp-group ${muted ? "muted" : ""}`}>
+      <div className="mp-group-head">
+        <span className="mp-group-icon">{icon}</span>
+        <span className="mp-group-title">{title}</span>
+        <span className="mp-group-count">{items.length}</span>
+      </div>
+      <div className="mp-group-list">
+        {items.map((p) => (
+          <ProgramCard
+            key={p.id}
+            program={p}
+            onOpen={onOpen}
+            coverStyle={coverStyle}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* =========================================================
+   ProgramCard
+========================================================= */
+function ProgramCard({ program, onOpen, coverStyle }) {
+  const trackRef = useRef(null);
+  const pausedRef = useRef(false);
+  const [idx, setIdx] = useState(0);
+
+  const slides = useMemo(() => {
+    const out = [];
+    songFields.forEach((f) => {
+      const songs = parseSongs(program[f.key]);
+      songs.forEach((song, i) => {
+        out.push({
+          label: f.label,
+          song,
+          key: `${f.key}-${i}`,
+          fieldKey: f.key,
+          index: i,
+          total: songs.length,
+        });
+      });
+    });
+    return out;
+  }, [program]);
+
+  const totalHymns = slides.length;
+  const todays = isToday(program.date);
+  const tomorrow = isTomorrow(program.date);
+
+  useEffect(() => {
+    if (slides.length <= 1) return;
+    const t = setInterval(() => {
+      if (pausedRef.current) return;
+      const el = trackRef.current;
+      if (!el) return;
+      const card = el.querySelector(".mp-song-card");
+      const w = (card?.offsetWidth || 240) + 12;
+      const maxScroll = el.scrollWidth - el.clientWidth;
+      const next = el.scrollLeft + w;
+      if (next >= maxScroll - 4) el.scrollTo({ left: 0, behavior: "smooth" });
+      else el.scrollTo({ left: next, behavior: "smooth" });
+    }, 4000);
+    return () => clearInterval(t);
+  }, [slides.length]);
+
+  const onScroll = (e) => {
+    const el = e.currentTarget;
+    const card = el.querySelector(".mp-song-card");
+    const w = (card?.offsetWidth || 240) + 12;
+    setIdx(Math.round(el.scrollLeft / w));
+  };
+
+  const slide = (dir, e) => {
+    e?.stopPropagation();
+    const el = trackRef.current;
+    if (!el) return;
+    const card = el.querySelector(".mp-song-card");
+    const w = (card?.offsetWidth || 240) + 12;
+    el.scrollBy({ left: dir * w, behavior: "smooth" });
+  };
+
+  return (
+    <article className={`mp-card ${todays ? "today" : ""}`}>
+      <header className="mp-card-head" onClick={() => onOpen(program)}>
+        <div className="mp-row-date-box">
+          <span className="mp-row-day">{new Date(program.date).getDate()}</span>
+          <span className="mp-row-month">
+            {new Date(program.date).toLocaleString("en-US", { month: "short" })}
+          </span>
+        </div>
+
+        <div className="mp-row-main">
+          <div className="mp-row-title-row">
+            <div className="mp-row-venue">{program.venue}</div>
+            {todays && <span className="mp-pill mp-pill-green">Today</span>}
+            {tomorrow && <span className="mp-pill mp-pill-blue">Tomorrow</span>}
+          </div>
+          <div className="mp-row-meta">
+            <span className="mp-row-date-label">
+              {new Date(program.date).toLocaleDateString("en-US", { weekday: "long" })}
+            </span>
+            {program.time && program.time !== "To be announced" && (
+              <span className="mp-row-meta-item">
+                <FiClock size={11} /> {program.time}
+              </span>
+            )}
+            <span className="mp-row-meta-item">
+              <FiMusic size={11} /> {totalHymns} hymn{totalHymns !== 1 ? "s" : ""}
+            </span>
+          </div>
+        </div>
+
+        <FiChevronRight size={16} className="mp-row-chev" />
+      </header>
+
+      {slides.length > 0 && (
+        <div
+          className="mp-card-carousel"
+          onMouseEnter={() => { pausedRef.current = true; }}
+          onMouseLeave={() => { pausedRef.current = false; }}
+          onTouchStart={() => { pausedRef.current = true; }}
+          onTouchEnd={() => {
+            setTimeout(() => { pausedRef.current = false; }, 2500);
+          }}
+        >
+          <div className="mp-song-track mp-song-track--inline" ref={trackRef} onScroll={onScroll}>
+            {slides.map((s, i) => (
+              <div
+                key={i}
+                className="mp-song-card mp-song-card--mini"
+                style={coverStyle}
+                onClick={(e) => { e.stopPropagation(); onOpen(program); }}
+              >
+                <div className="mp-song-card-shade" />
+                <div className="mp-song-card-body">
+                  <div className="mp-song-card-eyebrow">
+                    {s.label}
+                    {s.total > 1 && (
+                      <span className="mp-song-card-index"> · {s.index + 1}/{s.total}</span>
+                    )}
+                  </div>
+                  <h4 className="mp-song-card-title">{s.song}</h4>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {slides.length > 1 && (
+            <div className="mp-card-controls">
+              <div className="mp-card-dots">
+                {slides.slice(0, Math.min(slides.length, 8)).map((_, i) => (
+                  <button
+                    key={i}
+                    className={i === idx ? "on" : ""}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const el = trackRef.current;
+                      if (!el) return;
+                      const card = el.querySelector(".mp-song-card");
+                      const w = (card?.offsetWidth || 240) + 12;
+                      el.scrollTo({ left: i * w, behavior: "smooth" });
+                    }}
+                    aria-label={`Slide ${i + 1}`}
+                  />
+                ))}
+                {slides.length > 8 && <span className="mp-card-dots-more">+{slides.length - 8}</span>}
+              </div>
+
+              <div className="mp-card-arrows">
+                <button onClick={(e) => slide(-1, e)} aria-label="Previous">
+                  <FiChevronLeft size={13} />
+                </button>
+                <button onClick={(e) => slide(1, e)} aria-label="Next">
+                  <FiChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </article>
   );
 }
 
 /* =========================================================
    STYLES
-   ========================================================= */
-const baseCSS = `
-  .mp-page {
-    background: #fafafa;
-    min-height: 100vh;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    color: #171717;
-    -webkit-font-smoothing: antialiased;
-  }
-  .mp-container { padding: 20px 16px 60px; max-width: 1200px; margin: 0 auto; }
+========================================================= */
+const mainCSS = `
+  .mp{
+    --ink:#0f172a;--mut:#64748b;--faint:#94a3b8;
+    --ln:#e5e7eb;--soft:#f8fafc;--bg:#f8fafc;--card:#ffffff;
+    --red:#dc2626;--green:#16a34a;--blue:#3b82f6;
 
-  /* ---------- HEADER ---------- */
-  .mp-header { margin-bottom: 20px; }
-  .mp-header-top { margin-bottom: 16px; }
-  .mp-header-left { display: flex; align-items: center; gap: 12px; }
-  .mp-logo-box {
-    width: 46px; height: 46px; border-radius: 11px;
-    background: #ffffff; border: 1px solid #e5e5e5;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    min-height:100vh;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+    box-sizing:border-box;-webkit-font-smoothing:antialiased;
+    padding-bottom:40px;
   }
-  .mp-logo { width: 32px; height: auto; }
-  .mp-title { font-size: 22px; font-weight: 700; color: #0f0f0f; margin: 0; letter-spacing: -0.3px; }
-  .mp-subtitle { font-size: 12.5px; color: #737373; margin: 2px 0 0 0; }
+  .mp *{box-sizing:border-box}
+  .mp button{font-family:inherit;cursor:pointer}
+  .mp h1,.mp h2,.mp h3,.mp h4,.mp p{margin:0}
 
-  /* ---------- STATS ---------- */
-  .mp-stats {
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 8px; margin-bottom: 14px;
+  /* ---------- SKELETON ---------- */
+  .mp-list{display:flex;flex-direction:column;gap:14px}
+  .mp-sk-card{
+    background:#fff;border:1px solid var(--ln);border-radius:16px;
+    overflow:hidden;
   }
-  .mp-stat {
-    background: #ffffff; border: 1px solid #e5e5e5;
-    border-radius: 12px; padding: 12px 6px;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-    cursor: pointer; transition: all 0.15s ease;
-    font-family: inherit; color: inherit;
+  .mp-sk-head{display:flex;gap:14px;padding:16px}
+  .mp-sk-datebox{
+    width:52px;height:52px;border-radius:12px;flex-shrink:0;
+    background:linear-gradient(90deg,#eef2f7 25%,#e2e8f0 50%,#eef2f7 75%);
+    background-size:200% 100%;
+    animation:mp-sk 1.4s infinite;
   }
-  .mp-stat:hover { border-color: #d4d4d4; }
-  .mp-stat.active { border-color: #dc2626; background: #fef2f2; }
-  .mp-stat.active .mp-stat-value { color: #dc2626; }
-  .mp-stat-value {
-    font-size: 18px; font-weight: 800; color: #0f0f0f;
-    line-height: 1.1; display: inline-flex; align-items: center;
-    justify-content: center;
+  .mp-sk-info{flex:1;display:flex;flex-direction:column;gap:8px;justify-content:center}
+  .mp-sk-line{
+    height:12px;border-radius:6px;
+    background:linear-gradient(90deg,#eef2f7 25%,#e2e8f0 50%,#eef2f7 75%);
+    background-size:200% 100%;
+    animation:mp-sk 1.4s infinite;
   }
-  .mp-stat-label {
-    font-size: 10px; color: #737373;
-    text-transform: uppercase; letter-spacing: 0.05em;
-    font-weight: 700;
+  .mp-sk-line-lg{height:16px;width:60%}
+  .mp-sk-line-md{width:40%}
+  .mp-sk-line-sm{width:28%}
+  .mp-sk-carousel{display:flex;gap:12px;padding:0 16px 16px;overflow:hidden}
+  .mp-sk-song{
+    flex:0 0 76%;height:120px;border-radius:12px;
+    background:linear-gradient(90deg,#eef2f7 25%,#e2e8f0 50%,#eef2f7 75%);
+    background-size:200% 100%;
+    animation:mp-sk 1.4s infinite;
+  }
+  @media (min-width:640px){.mp-sk-song{flex:0 0 230px}}
+  @media (min-width:1024px){.mp-sk-song{flex:0 0 250px}}
+  @keyframes mp-sk{to{background-position:-200% 0}}
+
+  /* ---------- HERO ---------- */
+  .mp-hero{position:relative;height:220px;overflow:hidden;background:var(--ink)}
+  .mp-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .mp-shade{
+    position:absolute;inset:0;
+    background:
+      linear-gradient(180deg, rgba(15,23,42,.65) 0%, rgba(15,23,42,.20) 32%, rgba(15,23,42,.75) 100%),
+      linear-gradient(90deg, rgba(15,23,42,.55) 0%, rgba(15,23,42,.10) 55%, transparent 100%);
+  }
+  .mp-hero-back{
+    position:absolute;top:16px;left:16px;z-index:3;
+    display:inline-flex;align-items:center;gap:6px;
+    padding:8px 12px;background:rgba(255,255,255,.16);
+    border:1px solid rgba(255,255,255,.35);border-radius:10px;
+    color:#fff;font-size:12.5px;font-weight:700;
+    cursor:pointer;backdrop-filter:blur(8px);
+    font-family:inherit;transition:background .15s ease;
+  }
+  .mp-hero-back:hover{background:rgba(255,255,255,.28)}
+  .mp-hero-copy{
+    position:absolute;left:20px;right:20px;bottom:20px;z-index:2;
+    color:#fff;display:flex;flex-direction:column;gap:4px;
+  }
+  .mp-hero-eyebrow{
+    font-size:10px;font-weight:800;letter-spacing:.14em;
+    text-transform:uppercase;opacity:.85;
+    text-shadow:0 1px 6px rgba(0,0,0,.6);
+  }
+  .mp-hero-copy h1{
+    font-size:22px;font-weight:800;letter-spacing:-.02em;
+    text-shadow:0 2px 14px rgba(0,0,0,.75), 0 1px 3px rgba(0,0,0,.6);
+  }
+  .mp-hero-copy p{
+    font-size:12.5px;opacity:.92;
+    text-shadow:0 1px 8px rgba(0,0,0,.7);
+  }
+  @media (min-width:768px){
+    .mp-hero{height:260px;border-radius:0 0 24px 24px}
+    .mp-hero-copy h1{font-size:28px}
+    .mp-hero-copy p{font-size:13.5px}
+    .mp-hero-back{top:20px;left:24px}
   }
 
-  /* ---------- SEARCH ---------- */
-  .mp-search-wrap {
-    position: relative; margin-bottom: 12px;
-  }
-  .mp-search-icon {
-    position: absolute; left: 14px; top: 50%;
-    transform: translateY(-50%); color: #a3a3a3;
-  }
-  .mp-search-input {
-    width: 100%; padding: 11px 40px 11px 40px;
-    border: 1px solid #e5e5e5; border-radius: 999px;
-    background: #ffffff; font-size: 13px;
-    color: #171717; font-family: inherit;
-    outline: none; transition: border-color 0.15s ease;
-  }
-  .mp-search-input:focus { border-color: #a3a3a3; }
-  .mp-search-input::placeholder { color: #a3a3a3; }
-  .mp-search-clear {
-    position: absolute; right: 12px; top: 50%;
-    transform: translateY(-50%);
-    background: #f5f5f5; border: none; cursor: pointer;
-    color: #525252; width: 22px; height: 22px;
-    border-radius: 50%; font-size: 11px;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s ease;
-  }
-  .mp-search-clear:hover { background: #e5e5e5; color: #171717; }
+  /* ---------- SHELL ---------- */
+  .mp-shell{max-width:1080px;margin:0 auto;padding:0 16px;margin-top:24px}
+  @media (min-width:768px){.mp-shell{padding:0 24px;margin-top:32px}}
 
-  /* ---------- FILTERS ---------- */
-  .mp-filters {
-    display: grid; grid-template-columns: 1fr auto auto;
-    gap: 8px; margin-bottom: 12px;
+  /* ---------- TOOLBAR ---------- */
+  .mp-toolbar{
+    display:flex;gap:10px;margin-bottom:24px;
+    flex-wrap:wrap;align-items:center;
   }
-  .mp-select {
-    padding: 9px 14px; border-radius: 999px;
-    border: 1px solid #e5e5e5; background: #ffffff;
-    font-size: 12.5px; color: #171717; font-family: inherit;
-    outline: none; cursor: pointer;
-    transition: border-color 0.15s ease;
-    appearance: none;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-    background-repeat: no-repeat;
-    background-position: right 14px center;
-    padding-right: 32px;
+  .mp-search{
+    position:relative;flex:1 1 240px;
+    display:flex;align-items:center;gap:10px;
+    padding:0 14px;height:44px;
+    background:var(--card);border:1px solid var(--ln);
+    border-radius:10px;color:var(--faint);
+    transition:border-color .15s ease,box-shadow .15s ease;
   }
-  .mp-select:hover { border-color: #d4d4d4; }
-  .mp-select:focus { border-color: #0f0f0f; }
+  .mp-search:focus-within{border-color:var(--ink);box-shadow:0 0 0 3px rgba(15,23,42,.06)}
+  .mp-search input{
+    flex:1;border:0;outline:0;background:transparent;
+    font-size:14px;color:var(--ink);font-family:inherit;min-width:0;
+  }
+  .mp-search input::placeholder{color:var(--faint)}
+  .mp-search-x{
+    border:0;background:var(--soft);border-radius:6px;
+    width:22px;height:22px;display:grid;place-items:center;
+    cursor:pointer;color:var(--mut);
+  }
+  .mp-search-x:hover{background:var(--ln)}
+  .mp-select{
+    height:44px;padding:0 14px;
+    background:var(--card);border:1px solid var(--ln);
+    border-radius:10px;font-size:13.5px;font-weight:600;
+    color:var(--ink);cursor:pointer;font-family:inherit;
+    outline:none;transition:border-color .15s ease;
+  }
+  .mp-select:focus{border-color:var(--ink)}
+  .mp-tool{
+    height:44px;padding:0 14px;
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--card);border:1px solid var(--ln);
+    border-radius:10px;color:var(--mut);
+    font-size:13px;font-weight:600;transition:all .15s ease;
+  }
+  .mp-tool:hover{background:var(--soft);color:var(--ink);border-color:#cbd5e1}
+  @media (max-width:640px){
+    .mp-tool-label{display:none}
+  }
 
-  .mp-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 9px 14px; border-radius: 999px;
-    border: 1px solid #e5e5e5; background: #ffffff;
-    font-size: 12.5px; font-weight: 600; color: #262626;
-    cursor: pointer; transition: all 0.15s ease;
-    font-family: inherit; white-space: nowrap;
+  /* ---------- GROUPS ---------- */
+  .mp-group{margin-bottom:32px}
+  .mp-group-head{
+    display:flex;align-items:center;gap:8px;
+    margin-bottom:12px;padding:0 2px;
   }
-  .mp-btn:hover { background: #f5f5f5; border-color: #d4d4d4; }
-
-  /* ---------- RESULTS ---------- */
-  .mp-results {
-    font-size: 12.5px; color: #737373; margin-bottom: 4px;
+  .mp-group-icon{color:var(--faint);display:flex}
+  .mp-group-title{
+    font-size:11.5px;font-weight:800;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--mut);
   }
-  .mp-results strong {
-    color: #0f0f0f; font-weight: 700;
-    margin: 0 3px;
+  .mp-group-count{
+    margin-left:auto;font-size:11px;font-weight:700;
+    color:var(--faint);padding:2px 8px;background:var(--card);
+    border:1px solid var(--ln);border-radius:999px;
   }
+  .mp-group-list{display:flex;flex-direction:column;gap:14px}
 
   /* ---------- CARD ---------- */
-  .mp-list { display: flex; flex-direction: column; gap: 12px; }
+  .mp-card{
+    background:var(--card);
+    border:1px solid var(--ln);
+    border-radius:16px;
+    overflow:hidden;
+    transition:all .18s ease;
+    box-shadow:0 2px 8px -6px rgba(15,23,42,.15);
+  }
+  .mp-card:hover{
+    border-color:#cbd5e1;
+    box-shadow:0 12px 28px -18px rgba(15,23,42,.3);
+  }
+  .mp-card.today{
+    border-color:var(--ink);
+    box-shadow:0 0 0 3px rgba(15,23,42,.06), 0 4px 14px -8px rgba(15,23,42,.25);
+  }
+  .mp-group.muted .mp-card{opacity:.78}
+  .mp-group.muted .mp-card:hover{opacity:1}
 
-  .mp-card {
-    background: #ffffff; border: 1px solid #e5e5e5;
-    border-radius: 14px; padding: 14px;
-    transition: border-color 0.15s ease;
+  .mp-card-head{
+    display:flex;align-items:center;gap:14px;
+    padding:16px;cursor:pointer;
+    transition:background .12s ease;
   }
-  .mp-card:hover { border-color: #d4d4d4; }
-  .mp-card.fav { border-left: 3px solid #dc2626; }
+  .mp-card-head:hover{background:var(--soft)}
 
-  .mp-card-header {
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 10px; cursor: pointer;
-    margin-bottom: 10px;
+  .mp-row-date-box{
+    flex-shrink:0;width:52px;height:52px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:var(--ink);color:#fff;border-radius:12px;
+    line-height:1;gap:1px;
   }
-  .mp-card-header-left {
-    display: flex; gap: 12px; align-items: center;
-    flex: 1; min-width: 0;
-  }
-  .mp-date-badge {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    width: 46px; height: 46px; flex-shrink: 0;
-    background: #0f0f0f; color: #ffffff;
-    border-radius: 11px;
-  }
-  .mp-date-day { font-size: 17px; font-weight: 800; line-height: 1; }
-  .mp-date-month {
-    font-size: 10px; text-transform: uppercase;
-    letter-spacing: 0.04em; margin-top: 2px;
-    opacity: 0.85;
-  }
-  .mp-card-info { flex: 1; min-width: 0; }
-  .mp-card-title-row {
-    display: flex; align-items: center; gap: 6px;
-    flex-wrap: wrap; margin-bottom: 4px;
-  }
-  .mp-card-date {
-    font-size: 14.5px; font-weight: 700; color: #0f0f0f;
-  }
-  .mp-today-chip {
-    font-size: 9.5px; padding: 2px 8px;
-    background: #f0fdf4; color: #15803d;
-    border-radius: 999px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.04em;
-  }
-  .mp-card-meta {
-    display: flex; align-items: center; gap: 4px;
-    color: #737373; font-size: 11.5px;
-    margin-top: 2px;
-  }
-  .mp-card-meta svg { color: #a3a3a3; }
-
-  .mp-card-header-right {
-    display: flex; align-items: center; gap: 4px;
-    flex-shrink: 0;
-  }
-  .mp-icon-btn {
-    background: transparent; border: none; cursor: pointer;
-    padding: 6px; border-radius: 7px;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s ease;
-  }
-  .mp-icon-btn:hover { background: #f5f5f5; }
-  .mp-chevron {
-    color: #a3a3a3; padding: 6px;
-    display: flex; align-items: center;
+  .mp-row-day{font-size:19px;font-weight:800;letter-spacing:-.02em}
+  .mp-row-month{
+    font-size:9.5px;font-weight:800;
+    text-transform:uppercase;letter-spacing:.06em;
+    color:#cbd5e1;
   }
 
-  /* ---------- SONGS ---------- */
-  .mp-songs {
-    display: grid; grid-template-columns: repeat(2, 1fr);
-    gap: 8px; margin-bottom: 12px;
+  .mp-row-main{flex:1;min-width:0}
+  .mp-row-title-row{
+    display:flex;align-items:center;gap:8px;
+    flex-wrap:wrap;margin-bottom:4px;
   }
-  @media (max-width: 640px) {
-    .mp-songs { grid-template-columns: 1fr; }
+  .mp-row-venue{
+    font-size:15.5px;font-weight:700;color:var(--ink);
+    letter-spacing:-.01em;line-height:1.25;
+    word-break:break-word;
+    overflow-wrap:anywhere;
   }
-
-  .mp-song {
-    background: #fafafa; border: 1px solid #f0f0f0;
-    border-radius: 10px; padding: 11px 12px;
-    position: relative; transition: all 0.15s ease;
+  .mp-row-meta{
+    display:flex;align-items:center;gap:12px;
+    font-size:12.5px;color:var(--mut);flex-wrap:wrap;
   }
-  .mp-song.highlighted {
-    background: #eff6ff; border-color: #bfdbfe;
-  }
-
-  .mp-song-loading {
-    position: absolute; inset: 0;
-    background: rgba(255,255,255,0.9);
-    border-radius: 10px;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 6px; z-index: 10;
-    font-size: 11px; color: #0f0f0f; font-weight: 600;
-  }
-  .mp-song-spinner {
-    width: 20px; height: 20px;
-    border: 2px solid #e5e5e5;
-    border-top-color: #0f0f0f;
-    border-radius: 50%;
-    animation: mp-spin 0.8s linear infinite;
-  }
-  @keyframes mp-spin { to { transform: rotate(360deg); } }
-
-  .mp-song-head {
-    display: flex; align-items: center; gap: 6px;
-    margin-bottom: 6px; flex-wrap: wrap;
-  }
-  .mp-song-label {
-    font-size: 10.5px; font-weight: 700;
-    color: #737373; text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .mp-song-meta {
-    display: flex; gap: 6px; margin-left: auto;
-  }
-  .mp-song-meta span {
-    display: inline-flex; align-items: center; gap: 2px;
-    font-size: 9.5px; color: #a3a3a3;
-    font-weight: 600;
+  .mp-row-meta-item{display:inline-flex;align-items:center;gap:5px;font-weight:500}
+  .mp-row-meta-item svg{color:var(--faint)}
+  .mp-row-date-label{
+    font-weight:700;color:var(--mut);
+    text-transform:uppercase;letter-spacing:.04em;
+    font-size:11px;
   }
 
-  .mp-song-value-wrap { margin-bottom: 4px; }
-  .mp-song-value {
-    font-size: 12.5px; font-weight: 600; color: #0f0f0f;
-    word-break: break-word; line-height: 1.4;
-    display: flex; align-items: center;
-    justify-content: space-between; gap: 8px;
-    cursor: pointer; transition: color 0.15s ease;
+  .mp-pill{
+    font-size:10px;font-weight:800;
+    letter-spacing:.04em;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;
+    border:1px solid transparent;
   }
-  .mp-song-value:hover { color: #4f46e5; }
-  .mp-song-value:hover .mp-song-view-icon { opacity: 1; }
-  .mp-song-view-icon {
-    font-size: 10px; opacity: 0.35;
-    transition: opacity 0.15s ease;
+  .mp-pill-green{color:#047857;background:#ecfdf5;border-color:#a7f3d0}
+  .mp-pill-blue{color:#1d4ed8;background:#eff6ff;border-color:#bfdbfe}
+
+  .mp-row-chev{color:var(--faint);flex-shrink:0}
+
+  /* ---------- INLINE CAROUSEL ---------- */
+  .mp-card-carousel{position:relative;padding:0 0 12px}
+  .mp-song-track--inline{
+    padding:0 16px;
+    scroll-snap-type:x mandatory;
+    scrollbar-width:none;
   }
-  .mp-song-desc {
-    font-size: 10.5px; color: #a3a3a3;
-    margin-top: 3px; font-style: italic;
+  .mp-song-track--inline::-webkit-scrollbar{display:none}
+  .mp-song-track{display:flex;gap:12px;overflow-x:auto}
+  .mp-song-track::-webkit-scrollbar{display:none}
+
+  .mp-song-card{
+    position:relative;
+    flex:0 0 82%;
+    border-radius:16px;
+    overflow:hidden;
+    scroll-snap-align:start;
+    cursor:pointer;
+    box-shadow:0 8px 22px -12px rgba(15,23,42,.4);
+    transition:transform .2s ease, box-shadow .2s ease;
+    background:#0f172a;
+  }
+  .mp-song-card:hover{
+    transform:translateY(-3px);
+    box-shadow:0 16px 32px -14px rgba(15,23,42,.5);
   }
 
-  .mp-song-actions {
-    display: flex; justify-content: flex-end;
-    gap: 4px; margin-top: 6px;
+  .mp-song-card--mini{
+    flex:0 0 76%;
+    min-height:120px;
+    border-radius:12px;
+    box-shadow:0 6px 16px -10px rgba(15,23,42,.35);
   }
-  .mp-song-action {
-    background: transparent; border: none; cursor: pointer;
-    color: #737373; padding: 3px; border-radius: 5px;
-    display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s ease;
+  @media (min-width:640px){
+    .mp-song-card--mini{flex:0 0 230px}
   }
-  .mp-song-action:hover { background: #f5f5f5; color: #0f0f0f; }
-
-  .mp-song-note {
-    font-size: 10.5px; color: #6d28d9;
-    margin-top: 6px; padding: 4px 8px;
-    background: #f5f3ff; border-radius: 6px;
-    display: inline-flex; align-items: center; gap: 4px;
-    font-weight: 500;
+  @media (min-width:1024px){
+    .mp-song-card--mini{flex:0 0 250px}
   }
-
-  .mp-expand-btn {
-    grid-column: 1 / -1;
-    padding: 10px; background: #ffffff;
-    border: 1px dashed #d4d4d4; border-radius: 10px;
-    font-size: 11.5px; font-weight: 600;
-    color: #525252; cursor: pointer;
-    transition: all 0.15s ease;
-    font-family: inherit;
+  .mp-song-card--mini .mp-song-card-body{
+    padding:16px 16px 14px;
+    justify-content:flex-end;
   }
-  .mp-expand-btn:hover { background: #fafafa; border-color: #a3a3a3; color: #0f0f0f; }
-
-  /* ---------- ACTIONS ---------- */
-  .mp-actions {
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 6px; margin-top: 10px;
-    position: relative;
-  }
-  .mp-action {
-    display: flex; flex-direction: column;
-    align-items: center; gap: 4px;
-    padding: 9px 4px;
-    background: #fafafa; border: 1px solid #f0f0f0;
-    border-radius: 9px;
-    font-size: 10.5px; font-weight: 600;
-    color: #525252; cursor: pointer;
-    transition: all 0.15s ease;
-    font-family: inherit;
-  }
-  .mp-action:hover { background: #f5f5f5; border-color: #e5e5e5; color: #0f0f0f; }
-
-  .mp-download-wrap { position: relative; grid-column: span 4; }
-  .mp-action-wide {
-    flex-direction: row; justify-content: center; gap: 6px;
-    padding: 9px 12px;
-  }
-  .mp-download-menu {
-    position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
-    background: #ffffff; border: 1px solid #e5e5e5;
-    border-radius: 10px; padding: 5px;
-    box-shadow: 0 8px 20px -6px rgba(15,15,15,0.15);
-    z-index: 20;
-    display: flex; flex-direction: column; gap: 2px;
-  }
-  .mp-download-menu button {
-    display: flex; align-items: center; gap: 10px;
-    padding: 9px 12px; background: transparent;
-    border: none; border-radius: 7px;
-    font-size: 12.5px; font-weight: 600;
-    color: #262626; text-align: left;
-    cursor: pointer; transition: background 0.12s ease;
-    font-family: inherit;
-  }
-  .mp-download-menu button:hover { background: #f5f5f5; }
-  .mp-download-menu button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  /* ---------- PREVIEW TOAST ---------- */
-  .mp-preview-toast {
-    position: fixed; bottom: 80px; left: 50%;
-    transform: translateX(-50%);
-    background: #0f0f0f; color: #ffffff;
-    padding: 10px 18px; border-radius: 999px;
-    font-size: 12.5px; font-weight: 600;
-    z-index: 9998;
-    display: flex; align-items: center; gap: 8px;
-    box-shadow: 0 8px 20px -4px rgba(15,15,15,0.25);
-    max-width: 90%;
-  }
-  .mp-preview-toast span {
-    white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; max-width: 220px;
+  .mp-song-card--mini .mp-song-card-eyebrow{
+    font-size:9px;letter-spacing:.16em;margin-bottom:6px;
   }
 
-  /* ---------- MODAL ---------- */
-  .mp-modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(15,15,15,0.5);
-    backdrop-filter: blur(2px);
-    display: flex; align-items: center; justify-content: center;
-    padding: 16px; z-index: 1000;
+  /* Dark gradient overlay — always readable over photos */
+  .mp-song-card-shade{
+    position:absolute;inset:0;z-index:1;
+    background:
+      linear-gradient(180deg,
+        rgba(15,23,42,.55) 0%,
+        rgba(15,23,42,.7) 45%,
+        rgba(15,23,42,.96) 100%);
   }
-  .mp-modal {
-    background: #ffffff; border-radius: 14px;
-    padding: 20px; max-width: 420px; width: 100%;
-    max-height: 85vh; overflow-y: auto;
-    box-shadow: 0 20px 40px -12px rgba(0,0,0,0.2);
-  }
-  .mp-modal-head {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 16px;
-  }
-  .mp-modal-head h3 {
-    font-size: 15px; font-weight: 700;
-    color: #0f0f0f; margin: 0;
-  }
-  .mp-modal-close {
-    background: transparent; border: none;
-    color: #a3a3a3; cursor: pointer;
-    font-size: 15px; padding: 4px 8px;
-    border-radius: 6px; transition: all 0.15s ease;
-  }
-  .mp-modal-close:hover { background: #f5f5f5; color: #171717; }
 
-  .mp-link-box {
-    display: flex; gap: 8px; margin-bottom: 18px;
+  .mp-song-card-body{
+    position:relative;z-index:2;
+    display:flex;flex-direction:column;
+    color:#fff;
+    min-height:100%;
   }
-  .mp-link-box input {
-    flex: 1; padding: 10px 12px;
-    border: 1px solid #e5e5e5; border-radius: 9px;
-    background: #fafafa; font-size: 12px;
-    color: #262626; outline: none;
-    cursor: pointer;
-    overflow: hidden; text-overflow: ellipsis;
-    font-family: 'SF Mono', Menlo, Consolas, monospace;
-  }
-  .mp-link-box button {
-    padding: 10px 12px;
-    border: 1px solid #e5e5e5; border-radius: 9px;
-    background: #ffffff; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    color: #0f0f0f; transition: all 0.15s ease;
-  }
-  .mp-link-box button:hover { background: #f5f5f5; }
 
-  .mp-modal-options {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+  .mp-song-card-eyebrow{
+    font-size:9.5px;font-weight:800;
+    letter-spacing:.18em;text-transform:uppercase;
+    color:rgba(255,255,255,.85);
+    margin-bottom:6px;
+    text-shadow:0 1px 3px rgba(0,0,0,.6);
   }
-  .mp-modal-options button {
-    display: flex; flex-direction: column; align-items: center; gap: 6px;
-    padding: 14px 8px;
-    background: #fafafa; border: 1px solid #f0f0f0;
-    border-radius: 11px; cursor: pointer;
-    font-size: 11.5px; font-weight: 600;
-    color: #262626; transition: all 0.15s ease;
-    font-family: inherit;
+  .mp-song-card-index{
+    color:rgba(255,255,255,.6);
+    font-weight:700;
   }
-  .mp-modal-options button:hover { background: #f5f5f5; border-color: #e5e5e5; }
 
-  /* ---------- TOAST (created via DOM) ---------- */
+  /* No truncation, no clamp — full title always visible */
+  .mp-song-card-title{
+    font-size:14px;font-weight:800;
+    line-height:1.35;
+    color:#fff;
+    letter-spacing:-.005em;
+    text-transform:uppercase;
+    text-shadow:0 2px 8px rgba(0,0,0,.75);
+    word-break:break-word;
+    overflow-wrap:anywhere;
+  }
+  @media (min-width:640px){
+    .mp-song-card-title{font-size:14.5px}
+  }
+
+  /* Carousel controls */
+  .mp-card-controls{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px 0;gap:12px;
+  }
+  .mp-card-dots{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .mp-card-dots button{
+    width:6px;height:6px;padding:0;border:0;
+    border-radius:50%;background:#cbd5e1;cursor:pointer;
+    transition:all .15s ease;
+  }
+  .mp-card-dots button.on{width:20px;border-radius:6px;background:var(--ink)}
+  .mp-card-dots-more{font-size:10px;font-weight:700;color:var(--faint);margin-left:2px}
+  .mp-card-arrows{display:flex;gap:4px}
+  .mp-card-arrows button{
+    width:28px;height:28px;display:grid;place-items:center;
+    background:var(--card);border:1px solid var(--ln);
+    border-radius:8px;color:var(--mut);cursor:pointer;
+    transition:all .15s ease;font-family:inherit;
+  }
+  .mp-card-arrows button:hover{
+    background:var(--ink);color:#fff;border-color:var(--ink);
+  }
+
+  /* ---------- EMPTY / FOOT ---------- */
+  .mp-empty{
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    padding:60px 24px;text-align:center;
+    background:var(--card);border:1px dashed var(--ln);
+    border-radius:14px;color:var(--faint);
+  }
+  .mp-empty-icon{
+    width:56px;height:56px;border-radius:14px;
+    background:var(--soft);display:grid;place-items:center;
+    color:var(--faint);margin-bottom:4px;
+  }
+  .mp-empty b{color:var(--ink);font-size:15px;font-weight:700;letter-spacing:-.01em}
+  .mp-empty span{font-size:13px;line-height:1.5;max-width:300px}
+  .mp-empty-action{
+    margin-top:12px;padding:10px 18px;
+    background:var(--ink);color:#fff;border:0;border-radius:10px;
+    font-size:13px;font-weight:700;
+    transition:opacity .15s ease;font-family:inherit;
+  }
+  .mp-empty-action:hover{opacity:.9}
+
+  .mp-index-foot{
+    margin-top:40px;text-align:center;
+    font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--faint);
+    font-weight:700;
+  }
+
+  /* ---------- TOP BAR + PROGRAM HEADER ---------- */
+  .mp-topbar{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 16px;
+    background:rgba(248,250,252,.88);
+    backdrop-filter:saturate(180%) blur(12px);
+    -webkit-backdrop-filter:saturate(180%) blur(12px);
+  }
+  @media (min-width:768px){
+    .mp-topbar{padding:14px 24px;max-width:1080px;margin:0 auto;}
+  }
+  .mp-topbar-btn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:8px 12px;background:transparent;border:0;border-radius:9px;
+    color:var(--ink);font-size:13.5px;font-weight:600;
+    transition:background .12s ease;font-family:inherit;
+  }
+  .mp-topbar-btn:hover{background:var(--soft)}
+  .mp-topbar-right{display:flex;align-items:center;gap:2px}
+  .mp-topbar-icon{
+    width:40px;height:40px;display:grid;place-items:center;
+    background:transparent;border:0;border-radius:10px;color:var(--ink);
+    transition:background .12s ease;font-family:inherit;
+  }
+  .mp-topbar-icon:hover{background:var(--soft)}
+
+  .mp-program-head{
+    text-align:center;
+    padding:16px 16px 28px;
+    max-width:820px;margin:0 auto;
+  }
+  @media (min-width:640px){
+    .mp-program-head{padding:24px 32px 36px}
+  }
+  .mp-program-org{
+    font-size:10.5px;font-weight:800;
+    letter-spacing:.22em;text-transform:uppercase;
+    color:var(--mut);
+    margin-bottom:16px;
+    padding:8px 14px;
+    border:1px solid var(--ln);
+    display:inline-block;
+    border-radius:8px;
+    background:var(--card);
+  }
+  .mp-program-title{
+    font-size:24px;font-weight:900;
+    letter-spacing:-.02em;
+    color:var(--ink);
+    margin:0 0 14px;
+    line-height:1.1;
+  }
+  @media (min-width:640px){.mp-program-title{font-size:32px}}
+  .mp-program-date{
+    font-size:15px;font-weight:700;color:var(--ink);
+    letter-spacing:.01em;margin-bottom:6px;
+  }
+  .mp-program-venue{
+    font-size:13px;font-weight:600;
+    letter-spacing:.08em;text-transform:uppercase;
+    color:var(--mut);
+    word-break:break-word;overflow-wrap:anywhere;
+  }
+  .mp-program-meta{
+    display:flex;align-items:center;justify-content:center;gap:16px;
+    margin-top:14px;flex-wrap:wrap;
+  }
+  .mp-program-meta span{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:12px;font-weight:600;color:var(--mut);
+  }
+  .mp-program-meta svg{color:var(--faint)}
+
+  /* ---------- TABLE (clean, no heavy borders) ---------- */
+  .mp-program{
+    max-width:820px;margin:0 auto;
+    padding:0 16px 60px;
+  }
+  @media (min-width:640px){
+    .mp-program{padding:0 32px 80px}
+  }
+
+  .mp-table-wrap{
+    background:var(--card);
+    border:1px solid #dbeafe;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 8px 26px -18px rgba(15,23,42,.32);
+  }
+  .mp-table-head{
+    display:grid;
+    grid-template-columns:minmax(104px, 30%) minmax(0, 1fr);
+    background:linear-gradient(110deg,#102b59,#0b1b38);
+    color:#fff;
+  }
+  .mp-th{
+    padding:14px 16px;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:rgba(255,255,255,.96);
+  }
+  .mp-th-sched{ border-right:1px solid rgba(255,255,255,.14) }
+
+  .mp-table-body{ display:block }
+
+  .mp-table-row{
+    display:grid;
+    grid-template-columns:minmax(104px, 30%) minmax(0, 1fr);
+    border-bottom:1px solid #e6eef9;
+    transition:background .15s ease;
+  }
+  .mp-table-row:last-child{border-bottom:0}
+  .mp-table-row.alt{background:#f1f7ff}
+  .mp-table-row:hover{background:#eaf3ff}
+
+  .mp-td{
+    padding:16px;
+    vertical-align:top;
+    min-width:0;
+  }
+  .mp-td-sched{
+    border-right:1px solid #dbeafe;
+    display:flex;align-items:flex-start;
+  }
+  .mp-sched-label{
+    font-size:11px;
+    font-weight:850;
+    letter-spacing:.07em;
+    text-transform:uppercase;
+    color:var(--ink);
+    line-height:1.45;
+    overflow-wrap:anywhere;
+  }
+  .mp-td-song{
+    font-weight:500;
+    line-height:1.55;
+    min-width:0;
+  }
+
+  .mp-song-line{
+    display:flex;align-items:flex-start;justify-content:space-between;
+    flex-wrap:wrap;
+    gap:7px 8px;
+    padding:9px 8px;
+    border-radius:9px;
+    cursor:pointer;
+    transition:background .12s ease;
+    position:relative;
+  }
+  .mp-song-line + .mp-song-line{margin-top:2px}
+  .mp-song-line:hover{background:#eef4fb}
+  .mp-song-line.hl{background:#ecfdf5}
+  .mp-song-main{
+    display:flex;align-items:flex-start;gap:9px;flex:1 1 150px;min-width:0;
+  }
+  .mp-song-num{
+    display:inline-grid;place-items:center;
+    width:20px;height:20px;border-radius:6px;
+    background:var(--soft);
+    color:var(--mut);
+    font-size:10.5px;font-weight:800;
+    flex-shrink:0;margin-top:1px;
+  }
+  .mp-song-name{
+    text-transform:uppercase;
+    font-size:13px;
+    font-weight:750;
+    letter-spacing:.015em;
+    color:var(--ink);
+    transition:color .12s ease;
+    line-height:1.5;
+    word-break:normal;
+    overflow-wrap:anywhere;
+    min-width:0;
+  }
+  .mp-song-line:hover .mp-song-name{color:#0369a1}
+  @media (min-width:640px){
+    .mp-song-name{font-size:14px}
+  }
+  .mp-song-tools{
+    display:flex;gap:5px;flex:0 0 auto;align-items:center;
+    opacity:1;transition:opacity .15s ease;
+    margin-left:auto;
+  }
+  .mp-song-line:hover .mp-song-tools{opacity:1}
+  @media (max-width:768px){.mp-song-tools{opacity:1}}
+  .mp-song-tool{
+    width:30px;height:30px;display:grid;place-items:center;
+    background:#f8fbff;border:1px solid #d6e7ff;border-radius:50%;
+    color:#2459a6;cursor:pointer;
+    transition:background .12s ease,color .12s ease,transform .12s ease;
+    font-family:inherit;flex-shrink:0;
+  }
+  .mp-song-tool:hover{background:#dbeafe;color:#123b79;transform:translateY(-1px)}
+  .mp-song-tool:focus-visible{outline:2px solid #60a5fa;outline-offset:2px}
+  .mp-song-loading{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12.5px;color:var(--mut);font-weight:600;
+  }
+  .mp-song-spinner{
+    width:12px;height:12px;
+    border:2px solid var(--ln);
+    border-top-color:var(--ink);
+    border-radius:50%;
+    animation:mp-spin .8s linear infinite;
+  }
+  @keyframes mp-spin{to{transform:rotate(360deg)}}
+  .mp-song-note{
+    font-size:11.5px;color:#6d28d9;font-weight:600;
+    margin:6px 0 2px 36px;
+    padding:4px 10px;
+    background:#f5f3ff;border-radius:6px;
+    display:inline-flex;align-items:center;gap:5px;
+  }
+
+  .mp-program-foot{
+    margin-top:28px;text-align:center;
+    font-size:10.5px;font-weight:700;
+    letter-spacing:.22em;text-transform:uppercase;
+    color:var(--faint);
+  }
+
+  /* ---------- BOTTOM SHEET ---------- */
+  .mp-sheet-overlay{
+    position:fixed;inset:0;background:rgba(15,23,42,.55);
+    backdrop-filter:blur(4px);
+    z-index:1000;display:flex;align-items:flex-end;justify-content:center;
+  }
+  @media (min-width:640px){.mp-sheet-overlay{align-items:center}}
+  .mp-sheet-menu{
+    width:100%;max-width:460px;background:#fff;
+    border-radius:20px 20px 0 0;
+    padding:14px 10px calc(20px + env(safe-area-inset-bottom, 0px));
+    box-shadow:0 -8px 32px -8px rgba(15,23,42,.25);
+  }
+  @media (min-width:640px){
+    .mp-sheet-menu{border-radius:16px;margin:20px;padding:16px 10px}
+  }
+  .mp-sheet-menu-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:6px 12px 10px;
+  }
+  .mp-sheet-menu-head h3{font-size:14.5px;font-weight:800;color:var(--ink)}
+  .mp-sheet-menu-head button{
+    width:32px;height:32px;display:grid;place-items:center;
+    background:var(--soft);border:0;border-radius:9px;color:var(--ink);
+    font-family:inherit;
+  }
+  .mp-sheet-menu > button{
+    width:100%;display:flex;align-items:center;gap:14px;
+    padding:13px 14px;background:transparent;border:0;
+    border-radius:10px;
+    font-size:14px;font-weight:600;color:var(--ink);
+    text-align:left;transition:background .12s ease;font-family:inherit;
+  }
+  .mp-sheet-menu > button:hover{background:var(--soft)}
+  .mp-sheet-menu > button:disabled{opacity:.5;cursor:not-allowed}
+  .mp-sheet-sep{height:1px;background:var(--ln);margin:6px 10px}
+
+  /* ---------- TOASTS + MODAL ---------- */
+  .mp-toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;
+    color:#fff;background:var(--ink);z-index:10000;
+    box-shadow:0 12px 32px -10px rgba(15,23,42,.4);white-space:nowrap;
+    animation:mp-toast-in .25s ease;
+    max-width:90%;overflow:hidden;text-overflow:ellipsis;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  @keyframes mp-toast-in{
+    from{opacity:0;transform:translateX(-50%) translateY(8px)}
+    to{opacity:1;transform:translateX(-50%) translateY(0)}
+  }
+  .mp-preview-toast{
+    position:fixed;left:50%;bottom:24px;transform:translateX(-50%);
+    padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;
+    color:#fff;background:var(--ink);z-index:9998;
+    box-shadow:0 12px 32px -10px rgba(15,23,42,.4);
+    display:inline-flex;align-items:center;gap:9px;max-width:90%;
+  }
+  .mp-preview-toast span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+
+
+  .mp-program-hint{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  margin-top:14px;
+  padding:6px 12px;
+  background:#f1f5f9;
+  color:var(--mut);
+  font-size:11.5px;
+  font-weight:600;
+  letter-spacing:.02em;
+  border-radius:999px;
+}
+  .mp-overlay{
+    position:fixed;inset:0;background:rgba(15,23,42,.55);
+    backdrop-filter:blur(4px);z-index:1000;
+    display:flex;align-items:center;justify-content:center;padding:16px;
+  }
+  .mp-modal{
+    background:#fff;border-radius:16px;width:100%;max-width:440px;
+    max-height:90vh;display:flex;flex-direction:column;overflow:hidden;
+    box-shadow:0 40px 80px -30px rgba(15,23,42,.4);padding:20px;
+  }
+  .mp-modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}
+  .mp-modal-head h3{font-size:15px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
+
+  .mp-link-box{display:flex;gap:8px;margin-bottom:18px}
+  .mp-link-box input{
+    flex:1;padding:11px 14px;border:1px solid var(--ln);border-radius:10px;
+    background:var(--soft);font-size:12.5px;color:var(--ink);
+    outline:none;cursor:pointer;
+    font-family:'SF Mono',Menlo,Consolas,monospace;
+    overflow:hidden;text-overflow:ellipsis;
+  }
+  .mp-link-box button{
+    padding:11px 14px;border:1px solid var(--ln);border-radius:10px;
+    background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    color:var(--ink);transition:background .12s ease;font-family:inherit;
+  }
+  .mp-link-box button:hover{background:var(--soft)}
+
+  .mp-modal-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .mp-modal-options button{
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    padding:16px 8px;background:var(--soft);
+    border:1px solid transparent;border-radius:12px;
+    cursor:pointer;font-size:11.5px;font-weight:700;color:var(--ink);
+    transition:all .15s ease;font-family:inherit;
+  }
+  .mp-modal-options button:hover{background:#eef2f7;border-color:var(--ln)}
+
+  /* ---------- MOBILE ---------- */
+  @media (max-width:640px){
+    .mp-hero{height:200px}
+    .mp-hero-copy h1{font-size:19px}
+    .mp-hero-copy p{font-size:12px}
+    .mp-row-date-box{width:46px;height:46px}
+    .mp-row-day{font-size:17px}
+    .mp-row-venue{font-size:14.5px}
+    .mp-row-meta{font-size:11.5px;gap:10px}
+    .mp-program-head{padding:12px 16px 24px}
+    .mp-program-title{font-size:22px}
+    .mp-program-date{font-size:14px}
+    .mp-song-card--mini{flex:0 0 74%;min-height:120px}
+    .mp-card-head{padding:14px}
+    .mp-table-head{grid-template-columns:minmax(88px, 31%) minmax(0, 1fr)}
+    .mp-table-row{grid-template-columns:minmax(88px, 31%) minmax(0, 1fr)}
+    .mp-th{padding:12px 10px;font-size:9.5px;letter-spacing:.1em}
+    .mp-td{padding:10px 9px}
+    .mp-sched-label{font-size:9.5px;letter-spacing:.045em}
+    .mp-td-song{line-height:1.45}
+    .mp-song-line{padding:8px 5px;gap:7px 5px}
+    .mp-song-main{flex-basis:100%;gap:7px}
+    .mp-song-name{font-size:12px;line-height:1.45}
+    .mp-song-tools{margin-left:0;gap:5px;padding-left:0}
+    .mp-song-tool{width:28px;height:28px}
+    .mp-song-num{width:18px;height:18px;font-size:10px}
+  }
+
+    /* ============================================================
+     DESKTOP CARD PROPORTIONS
+     Keeps a single program card from looking stretched on wide
+     screens, and makes the mini song carousel feel intentional.
+     ============================================================ */
+  @media (min-width: 900px){
+    /* 1. Constrain the group so a lone card isn't a wide slab */
+    .mp-group-list{
+      max-width: 640px;
+      margin: 0 auto;
+    }
+
+    /* 2. Slimmer, wider mini cards so the row fills properly */
+    .mp-song-card--mini{
+      flex: 0 0 190px;
+      min-height: 108px;
+      border-radius: 14px;
+    }
+    .mp-song-card--mini .mp-song-card-body{
+      padding: 14px 14px 12px;
+    }
+    .mp-song-card--mini .mp-song-card-eyebrow{
+      font-size: 8.5px;
+      letter-spacing: .16em;
+      margin-bottom: 5px;
+    }
+    .mp-song-card--mini .mp-song-card-title{
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    /* 3. Softer inner padding so card feels deliberate, not empty */
+    .mp-card-head{
+      padding: 18px 20px;
+      gap: 16px;
+    }
+    .mp-row-date-box{
+      width: 56px;
+      height: 56px;
+    }
+    .mp-row-venue{
+      font-size: 16.5px;
+    }
+
+    /* 4. Align the carousel with the new card padding */
+    .mp-song-track--inline{
+      padding: 0 20px;
+      gap: 10px;
+    }
+    .mp-card-carousel{
+      padding-bottom: 10px;
+    }
+    .mp-card-controls{
+      padding: 10px 20px 0;
+    }
+
+    /* 5. Tighter dots/arrows so the footer isn't visually heavy */
+    .mp-card-arrows button{
+      width: 30px;
+      height: 30px;
+    }
+    .mp-card-dots button{
+      width: 7px;
+      height: 7px;
+    }
+    .mp-card-dots button.on{
+      width: 22px;
+    }
+  }
+
+  /* ------------------------------------------------------------
+     Very wide screens: give the card a touch more room but keep
+     it centred, so it still reads like a document, not a strip.
+     ------------------------------------------------------------ */
+  @media (min-width: 1400px){
+    .mp-group-list{
+      max-width: 720px;
+    }
+    .mp-song-card--mini{
+      flex: 0 0 205px;
+    }
+  }
 `;
-
-const toastStyle = `position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #0f0f0f; color: white; padding: 12px 22px; border-radius: 999px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 25px -5px rgba(15,15,15,0.3); z-index: 9999; animation: mp-slide-in 0.3s ease; white-space: nowrap; max-width: 90%; overflow: hidden; text-overflow: ellipsis; font-family: 'Inter', sans-serif;`;
-
-const mainCSS = `
-  ${baseCSS}
-  @keyframes mp-slide-in {
-    from { transform: translateX(-50%) translateY(10px); opacity: 0; }
-    to { transform: translateX(-50%) translateY(0); opacity: 1; }
-  }
-`;
-
-/* =========================================================
-   LOADING STYLES — UNCHANGED
-   ========================================================= */
-const loadingContainer = {
-  minHeight: "100vh",
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
-  background: "#f8fafc",
-  borderRadius: "40px",
-};
-
-const loadingSpinner = {
-  width: "60px",
-  height: "60px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: "30px",
-  background: "#ffffff",
-  borderRadius: "50%",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-  marginBottom: "16px",
-};
-
-const loadingText = {
-  color: "#1e293b",
-  fontSize: "16px",
-  fontWeight: "600",
-  marginBottom: "4px",
-};
-
-const loadingSubtext = {
-  color: "#64748b",
-  fontSize: "12px",
-};
-

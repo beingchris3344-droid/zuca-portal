@@ -14,7 +14,7 @@ import {
   FiCopy, FiPrinter, FiMail, FiX, FiClock,
   FiMusic, FiInbox, FiMoreHorizontal, FiArrowLeft,
   FiCalendar, FiSun,
-  FiBook,
+  FiBook, FiEye,
 } from "react-icons/fi";
 import {
   BsWhatsapp, BsTwitter, BsFileImage, BsMusicNoteBeamed,
@@ -125,6 +125,71 @@ function SkeletonCard() {
 }
 
 /* =========================================================
+   SHARED PROGRAM OPTIONS SHEET (used by card AND detail view)
+========================================================= */
+function ProgramOptionsSheet({
+  program,
+  onClose,
+  onShare,
+  onWhatsApp,
+  onCopy,
+  onPrint,
+  onSavePDF,
+  onSaveWord,
+  onSaveImage,
+  generatingImage,
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="mp-sheet-overlay"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 40, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="mp-sheet-menu"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mp-sheet-menu-head">
+          <h3>Program options</h3>
+          <button onClick={onClose} aria-label="Close">
+            <FiX size={16} />
+          </button>
+        </div>
+
+        <button onClick={onShare}>
+          <FiShare2 size={17} /> Share
+        </button>
+        <button onClick={onWhatsApp}>
+          <BsWhatsapp size={17} color="#25D366" /> WhatsApp
+        </button>
+        <button onClick={onCopy}>
+          <FiCopy size={17} /> Copy link
+        </button>
+        <div className="mp-sheet-sep" />
+        <button onClick={onPrint}>
+          <FiPrinter size={17} /> Print
+        </button>
+        <button onClick={onSavePDF}>
+          <FaFilePdf size={17} color="#dc2626" /> Save as PDF
+        </button>
+        <button onClick={onSaveWord}>
+          <FaFileWord size={17} color="#1d4ed8" /> Save as Word
+        </button>
+        <button onClick={onSaveImage} disabled={generatingImage}>
+          <BsFileImage size={17} /> Save as image
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+/* =========================================================
    MAIN COMPONENT
 ========================================================= */
 export default function MassPrograms() {
@@ -155,6 +220,7 @@ export default function MassPrograms() {
   const [cover, setCover] = useState(null);
   const [theme, setTheme] = useState("navy");
   const [bookletProgram, setBookletProgram] = useState(null);
+  const [cardSheetProgram, setCardSheetProgram] = useState(null);
 
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -367,7 +433,6 @@ export default function MassPrograms() {
       th{background:#000;color:#fff;padding:10px;border:1px solid #ddd;text-transform:uppercase;font-size:12px;letter-spacing:1px;}</style>
       </head><body>
       <div style="text-align:center;">
-      
         <h1>MASS PROGRAM</h1>
         <div style="font-size:16px;font-weight:bold;">${formattedDate}</div>
         <div style="font-size:13px;font-style:italic;margin-top:4px;">${program.venue}</div>
@@ -404,7 +469,6 @@ export default function MassPrograms() {
       th{background:#000;color:#fff;padding:10px;border:1px solid #ddd;text-transform:uppercase;font-size:12px;letter-spacing:1px;}</style>
       </head><body>
       <div style="text-align:center;">
-        
         <h1>MASS PROGRAM</h1>
         <div style="font-size:16px;font-weight:bold;">${formattedDate}</div>
         <div style="font-size:13px;font-style:italic;margin-top:4px;">${program.venue}</div>
@@ -464,6 +528,145 @@ export default function MassPrograms() {
   const coverStyle = cover
     ? { backgroundImage: `url(${cover})`, backgroundSize: "cover", backgroundPosition: "center" }
     : { background: themeBg(theme) };
+
+const groupActionProps = {
+  onOpen: openProgram,
+  coverStyle,
+  onOpenCardSheet: (p) => setCardSheetProgram(p),
+  onBooklet: (p) => setBookletProgram(p), 
+};
+
+  /* =========================================================
+     SHARED MODALS (rendered in both views)
+  ========================================================= */
+  const sharedModals = (
+    <>
+      {/* Preview toast */}
+      <AnimatePresence>
+        {songPreview && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="mp-preview-toast"
+          >
+            <BsMusicNoteBeamed size={14} />
+            <span>Previewing: {songPreview}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Share modal */}
+      <AnimatePresence>
+        {shareModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mp-overlay"
+            onClick={() => setShareModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.97, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ duration: 0.16 }}
+              className="mp-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mp-modal-head">
+                <h3>Share mass program</h3>
+                <button className="mp-topbar-icon" onClick={() => setShareModal(null)} aria-label="Close">
+                  <FiX size={16} />
+                </button>
+              </div>
+
+              <div className="mp-link-box">
+                <input
+                  type="text"
+                  value={generateShareLink(shareModal)}
+                  readOnly
+                  onClick={() => copyLink(shareModal)}
+                />
+                <button onClick={() => copyLink(shareModal)}>
+                  <FiCopy size={14} />
+                </button>
+              </div>
+
+              <div className="mp-modal-options">
+                <button onClick={() => shareLink(shareModal, "whatsapp")}>
+                  <BsWhatsapp size={20} color="#25D366" /><span>WhatsApp</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "telegram")}>
+                  <FaTelegramPlane size={20} color="#0088cc" /><span>Telegram</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "twitter")}>
+                  <BsTwitter size={20} color="#1DA1F2" /><span>Twitter</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "facebook")}>
+                  <FaFacebook size={20} color="#1877F2" /><span>Facebook</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "email")}>
+                  <FiMail size={20} /><span>Email</span>
+                </button>
+                <button onClick={() => shareLink(shareModal, "copy")}>
+                  <FiCopy size={20} /><span>Copy link</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Card options sheet */}
+      <AnimatePresence>
+        {cardSheetProgram && (
+          <ProgramOptionsSheet
+            program={cardSheetProgram}
+            onClose={() => setCardSheetProgram(null)}
+            generatingImage={generatingImage}
+            onShare={() => {
+              setShareModal(cardSheetProgram);
+              setCardSheetProgram(null);
+            }}
+            onWhatsApp={() => {
+              shareLink(cardSheetProgram, "whatsapp");
+              setCardSheetProgram(null);
+            }}
+            onCopy={() => {
+              copyLink(cardSheetProgram);
+              setCardSheetProgram(null);
+            }}
+            onPrint={() => {
+              printProgram(cardSheetProgram);
+              setCardSheetProgram(null);
+            }}
+            onSavePDF={() => {
+              downloadAsHTML(cardSheetProgram);
+              setCardSheetProgram(null);
+            }}
+            onSaveWord={() => {
+              downloadAsWord(cardSheetProgram);
+              setCardSheetProgram(null);
+            }}
+            onSaveImage={() => {
+              downloadAsImage(cardSheetProgram);
+              setCardSheetProgram(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Booklet modal — via portal */}
+      {bookletProgram && createPortal(
+        <BookletModal
+          program={bookletProgram}
+          onClose={() => setBookletProgram(null)}
+        />,
+        document.body
+      )}
+    </>
+  );
 
   /* =========================================================
      INDEX VIEW
@@ -571,8 +774,7 @@ export default function MassPrograms() {
                   title="Today"
                   icon={<FiSun size={12} />}
                   items={today}
-                  onOpen={openProgram}
-                  coverStyle={coverStyle}
+                  {...groupActionProps}
                 />
               )}
               {upcoming.length > 0 && (
@@ -580,8 +782,7 @@ export default function MassPrograms() {
                   title="Upcoming"
                   icon={<FiCalendar size={12} />}
                   items={upcoming}
-                  onOpen={openProgram}
-                  coverStyle={coverStyle}
+                  {...groupActionProps}
                 />
               )}
               {past.length > 0 && (
@@ -589,9 +790,8 @@ export default function MassPrograms() {
                   title="Past"
                   icon={<FiClock size={12} />}
                   items={past}
-                  onOpen={openProgram}
-                  coverStyle={coverStyle}
                   muted
+                  {...groupActionProps}
                 />
               )}
             </>
@@ -599,6 +799,8 @@ export default function MassPrograms() {
 
           <footer className="mp-index-foot">ZUCA Portal</footer>
         </div>
+
+        {sharedModals}
         <style>{mainCSS}</style>
       </div>
     );
@@ -648,20 +850,19 @@ export default function MassPrograms() {
           <span><FiMusic size={12} /> {totalHymns} hymn{totalHymns !== 1 ? "s" : ""}</span>
         </div>
         <div className="mp-program-hint">
-  Tap any song to open its lyrics
-</div>
+          Tap any song to open its lyrics
+        </div>
 
-<button
-  className="mp-booklet-btn"
-  onClick={() => setBookletProgram(p)}
->
-  <FiBook size={15} />
-  <span>Download Full Booklet with lyrics</span>
-</button>
-
+        <button
+          className="mp-booklet-btn"
+          onClick={() => setBookletProgram(p)}
+        >
+          <FiBook size={15} />
+          <span>Download Full Booklet with lyrics</span>
+        </button>
       </motion.header>
 
-      {/* The table — clean rows, no heavy borders */}
+      {/* The table */}
       <motion.article
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -755,151 +956,26 @@ export default function MassPrograms() {
         <footer className="mp-program-foot">ZUCA PORTAL</footer>
       </motion.article>
 
-      {/* Overflow menu */}
+      {/* Overflow menu — same shared sheet */}
       <AnimatePresence>
         {showMenu && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mp-sheet-overlay"
-            onClick={() => setShowMenu(false)}
-          >
-            <motion.div
-              initial={{ y: 40, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 40, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="mp-sheet-menu"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="mp-sheet-menu-head">
-                <h3>Program options</h3>
-                <button onClick={() => setShowMenu(false)} aria-label="Close">
-                  <FiX size={16} />
-                </button>
-              </div>
-
-              <button onClick={() => { setShowMenu(false); setBookletProgram(p); }}>
-  <FiBook size={17} /> Open booklet
-</button>
-<div className="mp-sheet-sep" />
-
-              <button onClick={() => { setShowMenu(false); setShareModal(p); }}>
-                <FiShare2 size={17} /> Share
-              </button>
-              <button onClick={() => { setShowMenu(false); shareLink(p, "whatsapp"); }}>
-                <BsWhatsapp size={17} color="#25D366" /> WhatsApp
-              </button>
-              <button onClick={() => { setShowMenu(false); copyLink(p); }}>
-                <FiCopy size={17} /> Copy link
-              </button>
-              <div className="mp-sheet-sep" />
-              <button onClick={() => { setShowMenu(false); printProgram(p); }}>
-                <FiPrinter size={17} /> Print
-              </button>
-              <button onClick={() => { setShowMenu(false); downloadAsHTML(p); }}>
-                <FaFilePdf size={17} color="#dc2626" /> Save as PDF
-              </button>
-              <button onClick={() => { setShowMenu(false); downloadAsWord(p); }}>
-                <FaFileWord size={17} color="#1d4ed8" /> Save as Word
-              </button>
-              <button
-                onClick={() => { setShowMenu(false); downloadAsImage(p); }}
-                disabled={generatingImage}
-              >
-                <BsFileImage size={17} /> Save as image
-              </button>
-            </motion.div>
-          </motion.div>
+          <ProgramOptionsSheet
+            program={p}
+            onClose={() => setShowMenu(false)}
+            generatingImage={generatingImage}
+            onShare={() => { setShowMenu(false); setShareModal(p); }}
+            onWhatsApp={() => { setShowMenu(false); shareLink(p, "whatsapp"); }}
+            onCopy={() => { setShowMenu(false); copyLink(p); }}
+            onPrint={() => { setShowMenu(false); printProgram(p); }}
+            onSavePDF={() => { setShowMenu(false); downloadAsHTML(p); }}
+            onSaveWord={() => { setShowMenu(false); downloadAsWord(p); }}
+            onSaveImage={() => { setShowMenu(false); downloadAsImage(p); }}
+          />
         )}
       </AnimatePresence>
 
-      {/* Preview toast */}
-      <AnimatePresence>
-        {songPreview && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="mp-preview-toast"
-          >
-            <BsMusicNoteBeamed size={14} />
-            <span>Previewing: {songPreview}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {sharedModals}
 
-      {/* Share modal */}
-      <AnimatePresence>
-        {shareModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mp-overlay"
-            onClick={() => setShareModal(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.97, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.97, opacity: 0 }}
-              transition={{ duration: 0.16 }}
-              className="mp-modal"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="mp-modal-head">
-                <h3>Share mass program</h3>
-                <button className="mp-topbar-icon" onClick={() => setShareModal(null)} aria-label="Close">
-                  <FiX size={16} />
-                </button>
-              </div>
-
-              <div className="mp-link-box">
-                <input
-                  type="text"
-                  value={generateShareLink(shareModal)}
-                  readOnly
-                  onClick={() => copyLink(shareModal)}
-                />
-                <button onClick={() => copyLink(shareModal)}>
-                  <FiCopy size={14} />
-                </button>
-              </div>
-
-              <div className="mp-modal-options">
-                <button onClick={() => shareLink(shareModal, "whatsapp")}>
-                  <BsWhatsapp size={20} color="#25D366" /><span>WhatsApp</span>
-                </button>
-                <button onClick={() => shareLink(shareModal, "telegram")}>
-                  <FaTelegramPlane size={20} color="#0088cc" /><span>Telegram</span>
-                </button>
-                <button onClick={() => shareLink(shareModal, "twitter")}>
-                  <BsTwitter size={20} color="#1DA1F2" /><span>Twitter</span>
-                </button>
-                <button onClick={() => shareLink(shareModal, "facebook")}>
-                  <FaFacebook size={20} color="#1877F2" /><span>Facebook</span>
-                </button>
-                <button onClick={() => shareLink(shareModal, "email")}>
-                  <FiMail size={20} /><span>Email</span>
-                </button>
-                <button onClick={() => shareLink(shareModal, "copy")}>
-                  <FiCopy size={20} /><span>Copy link</span>
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-
-{/* Booklet modal */}
-{bookletProgram && (
-  <BookletModal
-    program={bookletProgram}
-    onClose={() => setBookletProgram(null)}
-  />
-)}
       <style>{mainCSS}</style>
     </div>
   );
@@ -908,7 +984,16 @@ export default function MassPrograms() {
 /* =========================================================
    ProgramGroup
 ========================================================= */
-function ProgramGroup({ title, icon, items, onOpen, coverStyle, muted }) {
+function ProgramGroup({
+  title,
+  icon,
+  items,
+  onOpen,
+  coverStyle,
+  muted,
+  onOpenCardSheet,
+    onBooklet,
+}) {
   return (
     <section className={`mp-group ${muted ? "muted" : ""}`}>
       <div className="mp-group-head">
@@ -923,6 +1008,8 @@ function ProgramGroup({ title, icon, items, onOpen, coverStyle, muted }) {
             program={p}
             onOpen={onOpen}
             coverStyle={coverStyle}
+            onOpenCardSheet={onOpenCardSheet}
+            onBooklet={onBooklet}
           />
         ))}
       </div>
@@ -933,7 +1020,13 @@ function ProgramGroup({ title, icon, items, onOpen, coverStyle, muted }) {
 /* =========================================================
    ProgramCard
 ========================================================= */
-function ProgramCard({ program, onOpen, coverStyle }) {
+function ProgramCard({
+  program,
+  onOpen,
+  coverStyle,
+  onOpenCardSheet,
+  onBooklet,
+}) {
   const trackRef = useRef(null);
   const pausedRef = useRef(false);
   const [idx, setIdx] = useState(0);
@@ -1025,6 +1118,38 @@ function ProgramCard({ program, onOpen, coverStyle }) {
 
         <FiChevronRight size={16} className="mp-row-chev" />
       </header>
+
+           {/* Card action row */}
+      <div className="mp-card-actions" onClick={(e) => e.stopPropagation()}>
+        <button
+          className="mp-card-action"
+          onClick={() => onOpen(program)}
+          title="Open program"
+        >
+          <FiEye size={14} />
+          <span>Open</span>
+        </button>
+
+        <button
+          className="mp-card-action mp-card-action-booklet"
+          onClick={() => onBooklet(program)}
+          title="Download full booklet with lyrics"
+        >
+          <FiBook size={14} />
+          <span>Booklet with lyrics</span>
+        </button>
+
+        <button
+          className="mp-card-action"
+          onClick={() => onOpenCardSheet(program)}
+          title="Program options"
+        >
+          <FiMoreHorizontal size={14} />
+          <span>Options</span>
+        </button>
+      </div>
+
+      
 
       {slides.length > 0 && (
         <div
@@ -1261,18 +1386,14 @@ const mainCSS = `
   .mp-card{
     background:var(--card);
     border:1px solid var(--ln);
-    border-radius:16px;
+    border-radius:5px;
     overflow:hidden;
     transition:all .18s ease;
-    box-shadow:0 2px 8px -6px rgba(15,23,42,.15);
   }
   .mp-card:hover{
     border-color:#cbd5e1;
-    box-shadow:0 12px 28px -18px rgba(15,23,42,.3);
   }
   .mp-card.today{
-    border-color:var(--ink);
-    box-shadow:0 0 0 3px rgba(15,23,42,.06), 0 4px 14px -8px rgba(15,23,42,.25);
   }
   .mp-group.muted .mp-card{opacity:.78}
   .mp-group.muted .mp-card:hover{opacity:1}
@@ -1331,6 +1452,53 @@ const mainCSS = `
 
   .mp-row-chev{color:var(--faint);flex-shrink:0}
 
+  /* ---------- INLINE CARD ACTIONS ---------- */
+  .mp-card-actions{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:0 16px 14px;
+    flex-wrap:wrap;
+  }
+
+  .mp-card-action{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding:8px 12px;
+    background:#f8fafc;
+    border:1px solid var(--ln);
+    border-radius:0px;
+    color:var(--mut);
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    font-family:inherit;
+    transition:all .15s ease;
+    flex-shrink:0;
+    white-space:nowrap;
+  }
+  .mp-card-action:hover{
+    background:#eef2f7;
+    color:var(--ink);
+    border-color:#cbd5e1;
+  }
+  .mp-card-action svg{flex-shrink:0}
+
+  @media (max-width:640px){
+    .mp-card-actions{
+      padding:0 14px 12px;
+      gap:6px;
+    }
+    .mp-card-action{
+      flex:1 1 0;
+      justify-content:center;
+      padding:10px 8px;
+      font-size:11.5px;
+      min-height:40px;
+    }
+  }
+
   /* ---------- INLINE CAROUSEL ---------- */
   .mp-card-carousel{position:relative;padding:0 0 12px}
   .mp-song-track--inline{
@@ -1345,7 +1513,7 @@ const mainCSS = `
   .mp-song-card{
     position:relative;
     flex:0 0 82%;
-    border-radius:16px;
+    border-radius:6px;
     overflow:hidden;
     scroll-snap-align:start;
     cursor:pointer;
@@ -1361,7 +1529,8 @@ const mainCSS = `
   .mp-song-card--mini{
     flex:0 0 76%;
     min-height:120px;
-    border-radius:12px;
+    left:20;
+    border-radius:6px;
     box-shadow:0 6px 16px -10px rgba(15,23,42,.35);
   }
   @media (min-width:640px){
@@ -1378,7 +1547,6 @@ const mainCSS = `
     font-size:9px;letter-spacing:.16em;margin-bottom:6px;
   }
 
-  /* Dark gradient overlay — always readable over photos */
   .mp-song-card-shade{
     position:absolute;inset:0;z-index:1;
     background:
@@ -1407,7 +1575,6 @@ const mainCSS = `
     font-weight:700;
   }
 
-  /* No truncation, no clamp — full title always visible */
   .mp-song-card-title{
     font-size:14px;font-weight:800;
     line-height:1.35;
@@ -1422,7 +1589,6 @@ const mainCSS = `
     .mp-song-card-title{font-size:14.5px}
   }
 
-  /* Carousel controls */
   .mp-card-controls{
     display:flex;align-items:center;justify-content:space-between;
     padding:10px 16px 0;gap:12px;
@@ -1510,17 +1676,6 @@ const mainCSS = `
   @media (min-width:640px){
     .mp-program-head{padding:24px 32px 36px}
   }
-  .mp-program-org{
-    font-size:10.5px;font-weight:800;
-    letter-spacing:.22em;text-transform:uppercase;
-    color:var(--mut);
-    margin-bottom:16px;
-    padding:8px 14px;
-    border:1px solid var(--ln);
-    display:inline-block;
-    border-radius:8px;
-    background:var(--card);
-  }
   .mp-program-title{
     font-size:24px;font-weight:900;
     letter-spacing:-.02em;
@@ -1549,7 +1704,60 @@ const mainCSS = `
   }
   .mp-program-meta svg{color:var(--faint)}
 
-  /* ---------- TABLE (clean, no heavy borders) ---------- */
+  .mp-program-hint{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    margin-top:14px;
+    padding:6px 12px;
+    background:#f1f5f9;
+    color:var(--mut);
+    font-size:11.5px;
+    font-weight:600;
+    letter-spacing:.02em;
+    border-radius:999px;
+  }
+
+  .mp-booklet-btn{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    margin-top:14px;
+    padding:12px 20px;
+    background:var(--ink);
+    color:#fff;
+    border:0;
+    border-radius:12px;
+    font-size:13.5px;
+    font-weight:700;
+    letter-spacing:.01em;
+    font-family:inherit;
+    cursor:pointer;
+    transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+    box-shadow:0 6px 16px -8px rgba(15,23,42,.45);
+  }
+  .mp-booklet-btn:hover{
+    background:#1e293b;
+    transform:translateY(-1px);
+    box-shadow:0 12px 24px -10px rgba(15,23,42,.55);
+  }
+  .mp-booklet-btn:active{transform:translateY(0)}
+  .mp-booklet-btn svg{flex-shrink:0}
+
+  /* booklet action — slightly stronger than the others, since it's the main CTA */
+.mp-card-action-booklet{
+  background:#0f172a;
+  border-color:#0f172a;
+  color:#fff;
+  font-weight:700;
+}
+.mp-card-action-booklet:hover{
+  background:#1e293b;
+  border-color:#1e293b;
+  color:#fff;
+}
+
+  /* ---------- TABLE (full program view) ---------- */
   .mp-program{
     max-width:820px;margin:0 auto;
     padding:0 16px 60px;
@@ -1580,8 +1788,6 @@ const mainCSS = `
     color:rgba(255,255,255,.96);
   }
   .mp-th-sched{ border-right:1px solid rgba(255,255,255,.14) }
-
-  .mp-table-body{ display:block }
 
   .mp-table-row{
     display:grid;
@@ -1662,8 +1868,6 @@ const mainCSS = `
     opacity:1;transition:opacity .15s ease;
     margin-left:auto;
   }
-  .mp-song-line:hover .mp-song-tools{opacity:1}
-  @media (max-width:768px){.mp-song-tools{opacity:1}}
   .mp-song-tool{
     width:30px;height:30px;display:grid;place-items:center;
     background:#f8fbff;border:1px solid #d6e7ff;border-radius:50%;
@@ -1760,20 +1964,6 @@ const mainCSS = `
   }
   .mp-preview-toast span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
 
-
-  .mp-program-hint{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  margin-top:14px;
-  padding:6px 12px;
-  background:#f1f5f9;
-  color:var(--mut);
-  font-size:11.5px;
-  font-weight:600;
-  letter-spacing:.02em;
-  border-radius:999px;
-}
   .mp-overlay{
     position:fixed;inset:0;background:rgba(15,23,42,.55);
     backdrop-filter:blur(4px);z-index:1000;
@@ -1812,34 +2002,6 @@ const mainCSS = `
   }
   .mp-modal-options button:hover{background:#eef2f7;border-color:var(--ln)}
 
-    .mp-booklet-btn{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    margin-top:14px;
-    padding:12px 20px;
-    background:var(--ink);
-    color:#fff;
-    border:0;
-    border-radius:12px;
-    font-size:13.5px;
-    font-weight:700;
-    letter-spacing:.01em;
-    font-family:inherit;
-    cursor:pointer;
-    transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
-    box-shadow:0 6px 16px -8px rgba(15,23,42,.45);
-  }
-  .mp-booklet-btn:hover{
-    background:#1e293b;
-    transform:translateY(-1px);
-    box-shadow:0 12px 24px -10px rgba(15,23,42,.55);
-  }
-  .mp-booklet-btn:active{
-    transform:translateY(0);
-  }
-  .mp-booklet-btn svg{flex-shrink:0}
-
   /* ---------- MOBILE ---------- */
   @media (max-width:640px){
     .mp-hero{height:200px}
@@ -1868,86 +2030,26 @@ const mainCSS = `
     .mp-song-num{width:18px;height:18px;font-size:10px}
   }
 
-    /* ============================================================
-     DESKTOP CARD PROPORTIONS
-     Keeps a single program card from looking stretched on wide
-     screens, and makes the mini song carousel feel intentional.
-     ============================================================ */
   @media (min-width: 900px){
-    /* 1. Constrain the group so a lone card isn't a wide slab */
-    .mp-group-list{
-      max-width: 640px;
-      margin: 0 auto;
-    }
-
-    /* 2. Slimmer, wider mini cards so the row fills properly */
-    .mp-song-card--mini{
-      flex: 0 0 190px;
-      min-height: 108px;
-      border-radius: 14px;
-    }
-    .mp-song-card--mini .mp-song-card-body{
-      padding: 14px 14px 12px;
-    }
-    .mp-song-card--mini .mp-song-card-eyebrow{
-      font-size: 8.5px;
-      letter-spacing: .16em;
-      margin-bottom: 5px;
-    }
-    .mp-song-card--mini .mp-song-card-title{
-      font-size: 13px;
-      line-height: 1.35;
-    }
-
-    /* 3. Softer inner padding so card feels deliberate, not empty */
-    .mp-card-head{
-      padding: 18px 20px;
-      gap: 16px;
-    }
-    .mp-row-date-box{
-      width: 56px;
-      height: 56px;
-    }
-    .mp-row-venue{
-      font-size: 16.5px;
-    }
-
-    /* 4. Align the carousel with the new card padding */
-    .mp-song-track--inline{
-      padding: 0 20px;
-      gap: 10px;
-    }
-    .mp-card-carousel{
-      padding-bottom: 10px;
-    }
-    .mp-card-controls{
-      padding: 10px 20px 0;
-    }
-
-    /* 5. Tighter dots/arrows so the footer isn't visually heavy */
-    .mp-card-arrows button{
-      width: 30px;
-      height: 30px;
-    }
-    .mp-card-dots button{
-      width: 7px;
-      height: 7px;
-    }
-    .mp-card-dots button.on{
-      width: 22px;
-    }
+    .mp-group-list{max-width: 640px;margin: 0 auto;}
+    .mp-song-card--mini{flex: 0 0 190px;min-height: 108px;border-radius: 14px;}
+    .mp-song-card--mini .mp-song-card-body{padding: 14px 14px 12px;}
+    .mp-song-card--mini .mp-song-card-eyebrow{font-size: 8.5px;letter-spacing: .16em;margin-bottom: 5px;}
+    .mp-song-card--mini .mp-song-card-title{font-size: 13px;line-height: 1.35;}
+    .mp-card-head{padding: 18px 20px;gap: 16px;}
+    .mp-card-actions{padding: 0 20px 16px;}
+    .mp-row-date-box{width: 56px;height: 56px;}
+    .mp-row-venue{font-size: 16.5px;}
+    .mp-song-track--inline{padding: 0 20px;gap: 10px;}
+    .mp-card-carousel{padding-bottom: 10px;}
+    .mp-card-controls{padding: 10px 20px 0;}
+    .mp-card-arrows button{width: 30px;height: 30px;}
+    .mp-card-dots button{width: 7px;height: 7px;}
+    .mp-card-dots button.on{width: 22px;}
   }
 
-  /* ------------------------------------------------------------
-     Very wide screens: give the card a touch more room but keep
-     it centred, so it still reads like a document, not a strip.
-     ------------------------------------------------------------ */
   @media (min-width: 1400px){
-    .mp-group-list{
-      max-width: 720px;
-    }
-    .mp-song-card--mini{
-      flex: 0 0 205px;
-    }
+    .mp-group-list{max-width: 720px;}
+    .mp-song-card--mini{flex: 0 0 205px;}
   }
 `;

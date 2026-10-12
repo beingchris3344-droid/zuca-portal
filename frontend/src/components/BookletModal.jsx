@@ -714,7 +714,7 @@ const BookletModal = ({ program, onClose }) => {
       <table class="bk-toc-table">
         <thead>
           <tr>
-            <th class="bk-toc-th bk-toc-th-sched">Schedule</th>
+            <th class="bk-toc-th bk-toc-th-sched">TIME</th>
             <th class="bk-toc-th bk-toc-th-song">Song</th>
             <th class="bk-toc-th bk-toc-th-page">Page</th>
           </tr>

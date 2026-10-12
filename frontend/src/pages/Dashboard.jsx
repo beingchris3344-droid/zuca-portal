@@ -1501,16 +1501,16 @@ const nextEventText = nextEvent
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  border-radius:11px;
-  border:1px solid rgba(255,255,255,.35);
-  background:rgba(255,255,255,.18);
+  border-radius:6px;
+  border:1px solid rgba(255, 255, 255, 0);
+  background:rgba(255, 255, 255, 0);
   color:#fff;
   backdrop-filter:blur(8px);
   cursor:pointer;
   flex-shrink:0;
   transition:background .15s ease, transform .15s ease;
 }
-.zd-ib:hover{background:rgba(255,255,255,.3)}
+.zd-ib:hover{background:rgba(255, 255, 255, 0.11)}
 .zd-ib:active{transform:scale(.96)}
 
 .zd-ib-label{

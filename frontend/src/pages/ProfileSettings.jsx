@@ -7,8 +7,10 @@ import {
   FiSave, FiUser, FiMail, FiPhone, FiLock, FiCheckCircle,
   FiAlertCircle, FiCamera, FiTrash2, FiArrowLeft, FiShield,
   FiEye, FiEyeOff, FiGift, FiSliders, FiDroplet, FiZoomIn, FiZoomOut,
+  FiCreditCard, FiPrinter, FiCopy,
 } from "react-icons/fi";
 import BASE_URL from "../api";
+import zucaLogo from "../assets/zuca-logo.png";
 
 import ProfileImageCropper from "../components/ProfileImageCropper";
 import FingerprintRegistration from "../components/FingerprintRegistration";
@@ -1255,9 +1257,10 @@ function ProfileSettings({ user, onUserUpdate }) {
       .slice(0, 2)
       .toUpperCase() || "U";
 
-  const tabs = [
+    const tabs = [
     { id: "general", label: "General", icon: <FiUser size={14} /> },
     { id: "security", label: "Security", icon: <FiShield size={14} /> },
+    { id: "myid", label: "My ID", icon: <FiCreditCard size={14} /> },
     { id: "birthday", label: "Birthday", icon: <FiGift size={14} /> },
     { id: "advanced", label: "Advanced", icon: <FiSliders size={14} /> },
   ];
@@ -1556,6 +1559,138 @@ function ProfileSettings({ user, onUserUpdate }) {
                   />
                 </motion.div>
               )}
+
+                            {activeTab === "myid" && (
+                <motion.div
+                  key="myid"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <Section
+                    title="Member Identification Card"
+                    description="Your official ZUCA membership card. Keep your membership number confidential."
+                    icon={<FiCreditCard color="black" size={16} />}
+                    
+                  >
+                    <div style={idStyles.cardWrap}>
+                     <div style={idStyles.card}>
+  <div style={idStyles.cardDeco1} aria-hidden="true" />
+  <div style={idStyles.cardDeco2} aria-hidden="true" />
+  <div style={idStyles.cardGrid} aria-hidden="true" />
+
+                        <div style={idStyles.cardTop}>
+                          <span style={idStyles.cardBrand}>ZUCA</span>
+                          <span style={idStyles.cardTag}>MEMBER ID</span>
+                        </div>
+
+                        <div style={idStyles.cardPerson}>
+                          <div style={idStyles.cardAvatar}>
+  {profileImage ? (
+    <img
+      src={profileImage}
+      alt={user?.fullName}
+      style={idStyles.cardAvatarImg}
+    />
+  ) : (
+    <img
+      src={zucaLogo}
+      alt="ZUCA"
+      style={idStyles.cardAvatarLogo}
+    />
+  )}
+</div>
+
+                          <div style={idStyles.cardPersonInfo}>
+                            <p style={idStyles.cardCaption}>Registered Member</p>
+                            <h3 style={idStyles.cardName}>
+                              {user?.fullName || "Member"}
+                            </h3>
+                            <p style={idStyles.cardNumber}>
+                              {user?.membership_number || "—"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div style={idStyles.cardGrid2}>
+                          <div style={idStyles.cardField}>
+                            <p style={idStyles.cardFieldLabel}>Email</p>
+                            <p style={idStyles.cardFieldValue}>
+                              {user?.email || "—"}
+                            </p>
+                          </div>
+                          <div style={idStyles.cardField}>
+                            <p style={idStyles.cardFieldLabel}>Phone</p>
+                            <p style={idStyles.cardFieldValue}>
+                              {user?.phone || "—"}
+                            </p>
+                          </div>
+                          <div style={idStyles.cardField}>
+                            <p style={idStyles.cardFieldLabel}>Role</p>
+                            <p style={idStyles.cardFieldValue}>
+                              {user?.role || "Member"}
+                            </p>
+                          </div>
+                          <div style={idStyles.cardField}>
+                            <p style={idStyles.cardFieldLabel}>Jumuia</p>
+                            <p style={idStyles.cardFieldValue}>
+                              {user?.homeJumuia?.name || "Not assigned"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div style={idStyles.cardFooter}>
+                          <div>
+                            <p style={idStyles.cardFooterLabel}>Member since</p>
+                            <p style={idStyles.cardFooterValue}>
+                              {user?.createdAt
+                                ? new Date(user.createdAt).getFullYear()
+                                : new Date().getFullYear()}
+                            </p>
+                          </div>
+                          <img
+  src={zucaLogo}
+  alt=""
+  style={idStyles.cardWatermark}
+/>
+                        </div>
+                      </div>
+
+                      <div style={idStyles.actions}>
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          style={idStyles.actionBtnPrimary}
+                        >
+                          <FiPrinter size={14} />
+                          Print card
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const text = `ZUCA MEMBER ID\n${user?.fullName}\nMembership: ${user?.membership_number}\nEmail: ${user?.email}\nPhone: ${user?.phone || "—"}\nRole: ${user?.role}\nJumuia: ${user?.homeJumuia?.name || "Not assigned"}`;
+                            navigator.clipboard?.writeText(text);
+                            setSuccess("ID details copied to clipboard.");
+                            setTimeout(() => setSuccess(""), 2000);
+                          }}
+                          style={idStyles.actionBtnSecondary}
+                        >
+                          <FiCopy size={14} />
+                          Copy details
+                        </button>
+                      </div>
+
+                      <p style={idStyles.hint}>
+                        Keep your membership number private. Only share it
+                        with ZUCA administrators or when using official ZUCA
+                        services.
+                      </p>
+                    </div>
+                  </Section>
+                </motion.div>
+              )}
+
 
               {activeTab === "security" && (
                 <motion.div
@@ -2780,5 +2915,267 @@ const dz = {
     boxSizing: "border-box",
   },
 };
+
+/* ================================================================
+   MY ID — card styles
+================================================================ */
+
+const idStyles = {
+  cardWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 18,
+    alignItems: "center",
+  },
+
+ card: {
+  position: "relative",
+  width: "100%",
+  maxWidth: 520,
+  borderRadius: 16,
+  padding: "18px 20px 16px",
+  background: "linear-gradient(135deg, #19385f 0%, #102847 55%, #0d203b 100%)",
+  border: "1px solid #28486f",
+  color: "#fff",
+  overflow: "hidden",
+  boxShadow: "0 14px 30px rgba(20,44,76,0.18)",
+},
+
+cardDeco1: {
+  position: "absolute",
+  top: -80,
+  right: -60,
+  width: 180,
+  height: 180,
+  border: "1px solid rgba(255,255,255,0.1)",
+  borderRadius: "50%",
+  boxShadow:
+    "0 0 0 20px rgba(255,255,255,0.025), 0 0 0 40px rgba(255,255,255,0.02)",
+  pointerEvents: "none",
+},
+
+cardDeco2: {
+  position: "absolute",
+  right: -40,
+  bottom: -80,
+  width: 160,
+  height: 160,
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "50%",
+  pointerEvents: "none",
+},
+
+  cardGrid: {
+    position: "absolute",
+    inset: 0,
+    opacity: 0.16,
+    backgroundImage:
+      "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.5) 1px, transparent 0)",
+    backgroundSize: 20,
+    pointerEvents: "none",
+  },
+
+  cardTop: {
+    position: "relative",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingBottom: 14,
+    borderBottom: "1px solid rgba(255,255,255,0.14)",
+  },
+
+  cardBrand: {
+    fontSize: 12,
+    fontWeight: 800,
+    letterSpacing: "2.4px",
+    color: "rgba(255,255,255,0.9)",
+  },
+
+  cardTag: {
+    fontSize: 9.5,
+    fontWeight: 700,
+    letterSpacing: "1.8px",
+    color: "rgba(255,255,255,0.5)",
+    padding: "4px 8px",
+    border: "1px solid rgba(255,255,255,0.18)",
+    borderRadius: 999,
+  },
+
+  cardPerson: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    paddingBottom: 16,
+  },
+
+  cardAvatar: {
+    width: 72,
+    height: 84,
+    flexShrink: 0,
+    borderRadius: 10,
+    overflow: "hidden",
+    background: "#fff",
+    border: "1px solid rgba(255,255,255,0.35)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  cardAvatarImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+
+  cardAvatarLogo: {
+    width: "70%",
+    height: "70%",
+    objectFit: "contain",
+  },
+
+  cardPersonInfo: {
+    minWidth: 0,
+    flex: 1,
+  },
+
+  cardCaption: {
+    margin: "0 0 4px",
+    fontSize: 8.5,
+    fontWeight: 700,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    color: "#b9c9de",
+  },
+
+  cardName: {
+    margin: 0,
+    fontSize: 17,
+    fontWeight: 800,
+    color: "#fff",
+    lineHeight: 1.3,
+    overflowWrap: "anywhere",
+  },
+
+  cardNumber: {
+    margin: "6px 0 0",
+    fontSize: 12,
+    fontWeight: 700,
+    fontFamily:
+      "'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace",
+    color: "#d6e3f4",
+    letterSpacing: "0.06em",
+  },
+
+  cardGrid2: {
+    position: "relative",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px 18px",
+    paddingTop: 12,
+    borderTop: "1px solid rgba(255,255,255,0.14)",
+  },
+
+  cardField: { minWidth: 0 },
+
+  cardFieldLabel: {
+    margin: "0 0 3px",
+    fontSize: 8,
+    fontWeight: 700,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    color: "#aebfd5",
+  },
+
+  cardFieldValue: {
+    margin: 0,
+    fontSize: 11.5,
+    fontWeight: 700,
+    color: "#fff",
+    overflowWrap: "anywhere",
+  },
+
+  cardFooter: {
+    position: "relative",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTop: "1px solid rgba(255,255,255,0.14)",
+  },
+
+  cardFooterLabel: {
+    margin: "0 0 3px",
+    fontSize: 8,
+    fontWeight: 700,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    color: "#aebfd5",
+  },
+
+  cardFooterValue: {
+    margin: 0,
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#fff",
+  },
+
+  cardWatermark: {
+    width: 26,
+    height: 26,
+    objectFit: "contain",
+    opacity: 0.8,
+  },
+
+  actions: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    justifyContent: "center",
+    width: "100%",
+  },
+
+  actionBtnPrimary: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 20px",
+    background: "linear-gradient(135deg, #0f172a, #1e293b)",
+    border: "none",
+    borderRadius: 10,
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#fff",
+    cursor: "pointer",
+    boxShadow: "0 6px 14px -6px rgba(15, 23, 42, 0.5)",
+  },
+
+  actionBtnSecondary: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 20px",
+    background: "#fff",
+    border: "1px solid #e2e8f0",
+    borderRadius: 10,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#475569",
+    cursor: "pointer",
+  },
+
+  hint: {
+    margin: 0,
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+    lineHeight: 1.5,
+    maxWidth: 420,
+  },
+};
+
 
 export default ProfileSettings;

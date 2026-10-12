@@ -33,6 +33,14 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+
+//legal pages
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import CookiesPolicy from "./pages/CookiesPolicy";
+import HelpFaq from "./pages/HelpFaq";
+
+
 import HymnBook from './pages/HymnBook';
 import HymnLyrics from './pages/HymnLyrics';
 import LiturgicalCalendar from './pages/LiturgicalCalendar';
@@ -468,6 +476,17 @@ useEffect(() => {
         <Route path="/home" element={<Home />} />
         <Route path="/readings/:date" element={<FullReadings />} />
         <Route path="/liturgical-calendar" element={<LiturgicalCalendar />} />
+
+//legal pages
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/cookies" element={<CookiesPolicy />} />
+        <Route path="/help" element={<HelpFaq />} />
+
+
+
+
+
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/prayer" element={<Prayer />} />

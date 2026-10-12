@@ -79,6 +79,7 @@ function Register() {
   const [focusedField, setFocusedField] = useState(null);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [passwordMatch, setPasswordMatch] = useState(null);
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // ------------------------------------------------------------
   // VERIFICATION
@@ -466,6 +467,15 @@ function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+
+
+        if (!agreedToTerms) {
+      showToast(
+        "Please agree to the Terms, Privacy Policy, and Cookies Policy to continue.",
+        "error"
+      );
+      return;
+    }
 
     if (password !== confirmPassword) {
       showToast(
@@ -1124,11 +1134,51 @@ function Register() {
                   </div>
                 </div>
 
+                                {/* CONSENT */}
+                <label className="consent-row">
+                  <input
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="consent-checkbox"
+                  />
+                  <span className="consent-text">
+                    I have read and agree to the <strong>Zetech University Catholic Action</strong>{" "}
+                    <Link
+                      to="/terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="consent-link"
+                    >
+                      Terms of Service
+                    </Link>
+                    ,{" "}
+                    <Link
+                      to="/privacy-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="consent-link"
+                    >
+                      Privacy Policy
+                    </Link>
+                    , and{" "}
+                    <Link
+                      to="/cookies"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="consent-link"
+                    >
+                      Cookies and Storage Policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+
                 {/* SUBMIT */}
                 <motion.button
                   type="submit"
                   className="register-submit"
-                  disabled={loading}
+                                    disabled={loading || !agreedToTerms}
                   whileHover={{
                     y: -1,
                   }}
@@ -1851,6 +1901,47 @@ function Register() {
         .requirements-grid span.complete {
           color: #15803d;
           font-weight: 600;
+        }
+
+                /* -------------------------------------------------------
+           CONSENT
+        ------------------------------------------------------- */
+
+        .consent-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          padding: 12px 14px;
+          background: #f8fafc;
+          border: 1px solid #e5eaf1;
+          border-radius: 10px;
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .consent-checkbox {
+          width: 16px;
+          height: 16px;
+          margin: 2px 0 0;
+          flex-shrink: 0;
+          accent-color: #1d4ed8;
+          cursor: pointer;
+        }
+
+        .consent-text {
+          font-size: 11.5px;
+          line-height: 1.55;
+          color: #475569;
+        }
+
+        .consent-link {
+          color: #1d4ed8;
+          font-weight: 700;
+          text-decoration: none;
+        }
+
+        .consent-link:hover {
+          text-decoration: underline;
         }
 
         /* -------------------------------------------------------

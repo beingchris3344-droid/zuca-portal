@@ -1390,11 +1390,18 @@ const nextEventText = nextEvent
             <img src={logo} alt="ZUCA" onClick={() => navigate("/dashboard")} />
             <span><b>ZUCA Portal</b><small>Zetech University Catholic Action</small></span>
           </div>
-          <nav>
-            {[["About", "/about"], ["Contact", "/contact"], ["Privacy", "/privacy"], ["Terms", "/terms"]].map(([l, to]) => (
-              <button key={l} onClick={() => navigate(to)}>{l}</button>
-            ))}
-          </nav>
+         <nav>
+  {[
+    ["About", "/about"],
+    ["Contact", "/contact"],
+    ["Privacy", "/privacy-policy"],
+    ["Terms", "/terms"],
+    ["Cookies", "/cookies"],
+    ["Help", "/help"],
+  ].map(([l, to]) => (
+    <button key={l} onClick={() => navigate(to)}>{l}</button>
+  ))}
+</nav>
           <p>© {new Date().getFullYear()} ZUCA Portal | v 1.0 | Created by <b>@CHRISWEBSYS</b></p>
         </footer>
       </div>

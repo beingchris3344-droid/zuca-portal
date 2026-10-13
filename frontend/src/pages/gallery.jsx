@@ -14,6 +14,7 @@ import {
 import { FaWhatsapp, FaFacebook, FaTwitter, FaHeart } from "react-icons/fa";
 import axios from "axios";
 import BASE_URL from "../api";
+import SmartTicker from "../components/SmartTicker";
 
 function Gallery() {
   const navigate = useNavigate();
@@ -707,6 +708,7 @@ const [imageLoading, setImageLoading] = useState({});
 
   return (
     <div className="gallery-page">
+      <SmartTicker/>  
       <div className="gallery-content">
         {/* Hero Section */}
         <div className="gallery-hero">

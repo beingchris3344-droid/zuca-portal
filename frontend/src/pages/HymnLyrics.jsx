@@ -16,6 +16,7 @@ import {
 import { GiPrayerBeads } from "react-icons/gi";
 import html2canvas from "html2canvas";
 import BASE_URL from "../api";
+import SmartTicker from "../components/SmartTicker";
 
 export default function HymnLyrics() {
   const { id } = useParams();
@@ -401,6 +402,7 @@ export default function HymnLyrics() {
       </div>
     );
   }
+ 
 
   if (error || !song) {
     return (
@@ -447,8 +449,10 @@ export default function HymnLyrics() {
         animate={{ opacity: 1 }}
         className="hl-page"
       >
+        <SmartTicker />
         <div className="hl-container">
           {/* ============= TOP BAR ============= */}
+        
           <div className="hl-topbar">
             <button className="hl-back-btn" onClick={() => navigate(-1)}>
               <FiChevronLeft size={16} />

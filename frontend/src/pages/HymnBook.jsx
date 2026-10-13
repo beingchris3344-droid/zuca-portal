@@ -23,6 +23,7 @@ import { IoTimeOutline } from "react-icons/io5";
 import { Link } from "react-router-dom";
 import BASE_URL from "../api";
 import { FaMusic } from "react-icons/fa";
+import SmartTicker from "../components/SmartTicker";
 
 export default function HymnBook() {
   const [searchParams] = useSearchParams();
@@ -316,6 +317,7 @@ export default function HymnBook() {
       style={container}
     >
       <div style={headerSection}>
+        <SmartTicker/>  
         <div style={headerTop}>
   <div style={{
     display: "flex",

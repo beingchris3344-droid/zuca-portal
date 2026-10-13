@@ -22,10 +22,11 @@ import {
   FaFileAlt, FaFileExcel, FaFileArchive, FaFileImport,
   FaBirthdayCake, FaUser, FaRegFilePdf, FaSun,
   FaFilePdf,
+  FaBible,
 } from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
-import { GiGamepad, GiPrayerBeads } from "react-icons/gi";
+import { GiCalendar, GiGamepad, GiPrayerBeads } from "react-icons/gi";
 import { toggleDark } from "../utils/darkReader";
 
 
@@ -254,11 +255,28 @@ function Layout() {
         { path: "/dashboard", label: "Home", icon: <FaThLarge /> },
         { path: "/announcements", label: "Announcements", icon: <FiBell /> },
         { path: "/schedules", label: "Semester Schedule", icon: <FaCalendarPlus /> },
-        { path: "/mass-programs", label: "Mass Programs", icon: <FaFileAlt /> },
-        { path: "https://mycatholic.life/upcoming-reflections/#cal", label: "Liturgical Calendar", icon: <FaRegCalendar />, external: true },
+       
+        { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart /> },
+     
         { path: "/member/attendance", label: "Attendance/Records", icon: <FaUsers color="#ee0e46" /> },
       ],
     },
+
+
+     {
+      label: <strong>Liturgy Tools</strong> ,
+      items: [
+
+         { path: "/mass-programs", label: "Mass Programs", icon: <FaFileImport /> },
+      {path: "/mass-readings", label: "Mass Readings", icon: <FaBible />},
+        { path: "/hymns", label: "Lyrics Book", icon: <FiMusic /> },
+         { path: "https://mycatholic.life/upcoming-reflections/#cal", label: "Liturgical Calendar", icon: <GiCalendar />, external: true },
+        { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads /> },
+        
+      ],
+    },
+
+    
     {
       label: "ZUCA Family",
       items: [
@@ -277,8 +295,7 @@ function Layout() {
     {
       label: "Z-Resources",
       items: [
-        { path: "/hymns", label: "Lyrics Book", icon: <FiMusic /> },
-        { path: "/prayer", label: "Prayer Book", icon: <GiPrayerBeads /> },
+        
         { path: "/youtube", label: "ZUCA / TUBE", icon: <FaYoutube /> },
         { path: "/tools/pdf", label: "I ❤️ PDF tools", icon: <FaFilePdf color="red" size={15} /> },
       ],
@@ -292,12 +309,7 @@ function Layout() {
         { path: "/games", label: "Games Arcade", icon: <FaGamepad /> },
       ],
     },
-    {
-      label: "Finance",
-      items: [
-        { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart /> },
-      ],
-    },
+   
   ];
 
 
@@ -921,7 +933,8 @@ function Layout() {
         }
         @media (prefers-reduced-motion: reduce){
           *{ animation: none !important; transition: none !important; }
-        }
+        }import { color } from 'framer-motion';
+
       `}</style>
     </div>
   );

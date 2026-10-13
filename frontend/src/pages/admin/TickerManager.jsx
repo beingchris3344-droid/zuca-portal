@@ -33,6 +33,7 @@ const ROLE_OPTIONS = [
 
 const LINK_OPTIONS = [
   { value: "/dashboard", label: "Dashboard" },
+  { value: "/home", label: "Home" },
   { value: "/announcements", label: "Announcements" },
   { value: "/contributions", label: "Contributions" },
   { value: "/mass-programs", label: "Mass Programs" },
@@ -47,10 +48,24 @@ const LINK_OPTIONS = [
   { value: "/games", label: "Games" },
   { value: "/schedules", label: "Schedules" },
   { value: "/join-jumuia", label: "Join Jumuia" },
+  { value: "/jumuia-contributions", label: "My Jumuia" },
   { value: "/executive", label: "Executive Team" },
-  { value: "/feedback", label: "Feedback" },
+  { value: "/executive/minutes", label: "Executive Minutes" },
+  { value: "/minutes", label: "Meeting Minutes" },
+  { value: "/member/attendance", label: "My Attendance" },
+  { value: "/member/attendance-history", label: "Attendance History" },
+  { value: "/feedback", label: "Send Feedback" },
+  { value: "/feedback/history", label: "My Feedback History" },
+  { value: "/tools/pdf", label: "PDF Tools" },
+  { value: "/profile", label: "Birthday Settings" },
   { value: "/profile-settings", label: "Profile Settings" },
-  { value: "/minutes", label: "Meeting Minutes" }
+  { value: "/user-manual", label: "User Manual" },
+  { value: "/help", label: "Help & FAQ" },
+  { value: "/privacy-policy", label: "Privacy Policy" },
+  { value: "/terms", label: "Terms of Service" },
+  { value: "/cookies", label: "Cookies Policy" },
+  { value: "/register", label: "Register" },
+  { value: "/login", label: "Login" }
 ];
 
 const EMPTY_FORM = {

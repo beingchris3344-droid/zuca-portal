@@ -7,6 +7,7 @@ import Notifications from "./Notifications";
 import axios from "axios";
 import BASE_URL from "../api";
 import AnimatedBackground from "./AnimatedBackground";
+import SmartTicker from "./SmartTicker";
 //import FloatingInstallButton from "./FloatingInstallButton";
 import {
   FiHome, FiCalendar, FiBook, FiImage, FiUsers, FiBell,
@@ -28,6 +29,7 @@ import { api } from "../api";
 import { io } from "socket.io-client";
 import { GiCalendar, GiGamepad, GiPrayerBeads } from "react-icons/gi";
 import { toggleDark } from "../utils/darkReader";
+
 
 
 // Messenger Icon with Badge Component (kept)
@@ -54,6 +56,8 @@ const MessengerIcon = () => {
       transports: ["websocket"],
       auth: { token: localStorage.getItem("token") },
     });
+  
+    window.__zucaSocket = socket;
 
     socket.on("dm:new_message", () => setUnreadCount((prev) => prev + 1));
     socket.on("dm:message_read", () => fetchUnreadCount());
@@ -668,6 +672,8 @@ function Layout() {
             </div>
           </div>
         </header>
+     <SmartTicker />
+
 
         <Outlet />
       </main>

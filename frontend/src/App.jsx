@@ -12,6 +12,7 @@ import ProfilePage from "./pages/ProfilePage";
 import badgeManager from "./utils/badgeManager";
 import pushService from "./services/pushService";
 
+
 // Import AI Assistants
 import ZucaAIAssistant from "./components/ZucaAIAssistant";
 import AdminAIAssistant from "./components/AdminAIAssistant";
@@ -146,6 +147,8 @@ import AdminFeedbackDetail from './pages/admin/AdminFeedbackDetail';
 import CountdownSettings from './pages/admin/CountdownSettings';
 import Advertisements from "./pages/admin/Advertisements";
 import BirthdayManagement from "./pages/admin/BirthdayManagement";
+import TickerManager from "./pages/admin/TickerManager";
+
 
 
 import { initializeDark } from "./utils/darkReader";
@@ -669,6 +672,10 @@ useEffect(() => {
 <Route
   path="/admin/birthday"
   element={<BirthdayManagement />}
+/>
+<Route
+  path="/admin/ticker"
+  element={<TickerManager />}
 />
 
 

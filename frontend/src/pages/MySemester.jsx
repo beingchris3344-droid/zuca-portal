@@ -153,7 +153,7 @@ export default function MySemester() {
 
             {/* Semester title */}
             <section className="sem-title-block">
-              <div className="sem-eyebrow">Semester Registration</div>
+              <div className="sem-eyebrow">Club Registration</div>
               <h1 className="sem-title">{semester.title}</h1>
               <div className="sem-period">
                 {fmtDate(semester.startDate)} — {fmtDate(semester.endDate)}

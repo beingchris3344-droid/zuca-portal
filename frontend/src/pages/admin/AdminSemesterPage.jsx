@@ -1,17 +1,14 @@
-// frontend/src/pages/admin/AdminSemesterPage.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
   FiArrowLeft, FiCalendar, FiCheck, FiAlertCircle, FiDownload,
   FiRefreshCw, FiUsers, FiTrash2, FiUnlock, FiLock,
+  FiLink, FiCopy, FiShare2, FiUserPlus, FiSearch, FiX,
 } from "react-icons/fi";
+import { FaWhatsapp } from "react-icons/fa";
 import zucaLogo from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
-
-/* ================================================================
-   Semester Management — admin page
-   ================================================================ */
 
 export default function AdminSemesterPage() {
   const navigate = useNavigate();
@@ -29,12 +26,63 @@ export default function AdminSemesterPage() {
 
   const [savingSettings, setSavingSettings] = useState(false);
   const [busyAction, setBusyAction] = useState("");
+  const [exporting, setExporting] = useState("");
 
   const [activeSection, setActiveSection] = useState("overview");
+  const [copied, setCopied] = useState(false);
 
+  const [showAddPanel, setShowAddPanel] = useState(false);
+  const [userQuery, setUserQuery] = useState("");
+  const [userResults, setUserResults] = useState([]);
+  const [userSearching, setUserSearching] = useState(false);
+  const [pickedUser, setPickedUser] = useState(null);
+  const [addAdmission, setAddAdmission] = useState("");
+  const [addContact, setAddContact] = useState("");
+  const [addRole, setAddRole] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+
+  const searchTimer = useRef(null);
   const selected = semesters.find((s) => s.id === selectedId) || null;
 
-  /* ---------- fetch semesters ---------- */
+  const registrationPath = "/my-semester";
+  const registrationUrl = `${window.location.origin}${registrationPath}`;
+  const shareMessage = selected
+    ? `Register for ${selected.title} on the ZUCA Portal: ${registrationUrl}`
+    : `Register on the ZUCA Portal: ${registrationUrl}`;
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(registrationUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Could not copy link. Please copy manually.");
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    const url = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleNativeShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: selected ? `${selected.title} — Registration` : "ZUCA Registration",
+          text: shareMessage,
+          url: registrationUrl,
+        });
+      } catch (err) {
+        if (err?.name !== "AbortError") {
+          setError("Could not open share sheet.");
+        }
+      }
+    } else {
+      handleCopyLink();
+    }
+  };
+
   const loadSemesters = async () => {
     try {
       setLoading(true);
@@ -54,7 +102,6 @@ export default function AdminSemesterPage() {
 
   useEffect(() => { loadSemesters(); /* eslint-disable-next-line */ }, []);
 
-  /* ---------- fetch roster ---------- */
   const loadRoster = async (semesterId) => {
     if (!semesterId) return;
     try {
@@ -78,7 +125,6 @@ export default function AdminSemesterPage() {
 
   useEffect(() => { loadRoster(selectedId); /* eslint-disable-next-line */ }, [selectedId]);
 
-  /* ---------- open / close ---------- */
   const openRegistration = async () => {
     if (!selectedId) return;
     setBusyAction("open");
@@ -137,7 +183,6 @@ export default function AdminSemesterPage() {
     }
   };
 
-  /* ---------- update settings ---------- */
   const updateSetting = async (field, value) => {
     if (!selectedId) return;
     setSavingSettings(true);
@@ -158,25 +203,41 @@ export default function AdminSemesterPage() {
     }
   };
 
-  /* ---------- export csv ---------- */
-  const exportCSV = () => {
-    if (!selectedId) return;
-    const url = `${BASE_URL}/api/semesters/${selectedId}/export.csv`;
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.blob())
-      .then((blob) => {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `roster_${(selected?.title || "semester").replace(/[^a-z0-9]/gi, "_")}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(a.href);
-      })
-      .catch(() => setError("Could not export CSV."));
+  const exportRoster = async (format) => {
+    if (!selectedId || exporting) return;
+    setExporting(format);
+    setError(""); setSuccess("");
+    const url = `${BASE_URL}/api/semesters/${selectedId}/export.${format}`;
+    try {
+      const r = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) {
+        let msg = "Export failed.";
+        try {
+          const j = await r.json();
+          msg = j.error || msg;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(msg);
+      }
+      const blob = await r.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `roster_${(selected?.title || "semester").replace(/[^a-z0-9]/gi, "_")}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+      setSuccess(`Roster exported as ${format.toUpperCase()}.`);
+    } catch (err) {
+      setError(err.message || "Could not export roster.");
+    } finally {
+      setExporting("");
+    }
   };
 
-  /* ---------- remove member ---------- */
   const removeMember = async (userId, name) => {
     if (!selectedId) return;
     if (!window.confirm(`Remove ${name} from this semester?`)) return;
@@ -192,6 +253,104 @@ export default function AdminSemesterPage() {
     }
   };
 
+  const resetAddPanel = () => {
+    setUserQuery("");
+    setUserResults([]);
+    setPickedUser(null);
+    setAddAdmission("");
+    setAddContact("");
+    setAddRole("");
+  };
+
+  const toggleAddPanel = () => {
+    if (showAddPanel) {
+      resetAddPanel();
+      setShowAddPanel(false);
+    } else {
+      resetAddPanel();
+      setShowAddPanel(true);
+    }
+  };
+
+  const loadEligibleUsers = async (q = "") => {
+    if (!selectedId) return;
+    setUserSearching(true);
+    setError("");
+    try {
+      const res = await axios.get(
+        `${BASE_URL}/api/semesters/${selectedId}/eligible-users?search=${encodeURIComponent(q)}&limit=100`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setUserResults(res.data.users || []);
+    } catch (err) {
+      setUserResults([]);
+      setError(err.response?.data?.error || "Could not load users.");
+    } finally {
+      setUserSearching(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showAddPanel) return;
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => loadEligibleUsers(userQuery), 250);
+    return () => clearTimeout(searchTimer.current);
+    /* eslint-disable-next-line */
+  }, [userQuery, showAddPanel, selectedId]);
+
+  const pickUser = (u) => {
+    setPickedUser(u);
+    setUserResults([]);
+    setUserQuery(u.fullName || "");
+    setAddAdmission(u.admissionNumber || "");
+    setAddContact(u.phone || "");
+    setAddRole(u.specialRole || u.role || "member");
+  };
+
+  const clearPickedUser = () => {
+    setPickedUser(null);
+    setUserQuery("");
+    setUserResults([]);
+    setAddAdmission("");
+    setAddContact("");
+    setAddRole("");
+  };
+
+  const submitAddUser = async () => {
+    if (!selectedId) return;
+    if (!pickedUser) {
+      setError("Select a user to register.");
+      return;
+    }
+    if (!addAdmission.trim()) {
+      setError("Admission number is required. Enter N/A for alumni.");
+      return;
+    }
+    setAddBusy(true);
+    setError(""); setSuccess("");
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/api/semesters/${selectedId}/register-user`,
+        {
+          userId: pickedUser.id,
+          admissionNumber: addAdmission.trim(),
+          contact: addContact.trim() || undefined,
+          role: addRole.trim() || undefined,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSuccess(res.data.message || "Member registered.");
+      resetAddPanel();
+      setShowAddPanel(false);
+      await loadRoster(selectedId);
+      await loadSemesters();
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not register user.");
+    } finally {
+      setAddBusy(false);
+    }
+  };
+
   const fmtDate = (v) => {
     if (!v) return "—";
     const d = new Date(v);
@@ -199,13 +358,9 @@ export default function AdminSemesterPage() {
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   };
 
-  /* ================================================================
-     RENDER
-     ================================================================ */
   return (
     <div className="adm-page">
       <div className="adm-container">
-        {/* HEADER */}
         <header className="adm-header">
           <div className="adm-header-brand">
             <img src={zucaLogo} alt="ZUCA" className="adm-header-logo" />
@@ -213,9 +368,9 @@ export default function AdminSemesterPage() {
               <div className="adm-eyebrow">
                 <FiCalendar size={12} /> Administration
               </div>
-              <h1 className="adm-title">Semester Management</h1>
+              <h1 className="adm-title">Club Registration</h1>
               <p className="adm-subtitle">
-                Open registration, manage members and notifications
+                Open registration, register members, and export rosters
               </p>
             </div>
           </div>
@@ -245,13 +400,12 @@ export default function AdminSemesterPage() {
           </div>
         ) : (
           <>
-            {/* SELECTOR */}
             <section className="adm-panel">
               <div className="adm-panel-head">
                 <div>
                   <h3>Select semester</h3>
                   <p className="adm-panel-sub">
-                    Choose which semester you are managing
+                    Choose which semester you are managing.
                   </p>
                 </div>
               </div>
@@ -269,31 +423,28 @@ export default function AdminSemesterPage() {
               </select>
 
               {selected && (
-                <>
-                  <div className="adm-meta">
-                    <div className="adm-meta-item">
-                      <span className="adm-meta-label">Period</span>
-                      <span className="adm-meta-value">
-                        {fmtDate(selected.startDate)} — {fmtDate(selected.endDate)}
-                      </span>
-                    </div>
-                    <div className="adm-meta-item">
-                      <span className="adm-meta-label">Registration</span>
-                      <span className={`adm-status ${selected.registrationOpen ? "open" : "closed"}`}>
-                        <span className="adm-status-dot" />
-                        {selected.registrationOpen ? "OPEN" : "CLOSED"}
-                      </span>
-                    </div>
-                    <div className="adm-meta-item">
-                      <span className="adm-meta-label">Members</span>
-                      <span className="adm-meta-value">{selected.memberCount}</span>
-                    </div>
+                <div className="adm-meta">
+                  <div className="adm-meta-item">
+                    <span className="adm-meta-label">Period</span>
+                    <span className="adm-meta-value">
+                      {fmtDate(selected.startDate)} — {fmtDate(selected.endDate)}
+                    </span>
                   </div>
-                </>
+                  <div className="adm-meta-item">
+                    <span className="adm-meta-label">Registration</span>
+                    <span className={`adm-status ${selected.registrationOpen ? "open" : "closed"}`}>
+                      <span className="adm-status-dot" />
+                      {selected.registrationOpen ? "OPEN" : "CLOSED"}
+                    </span>
+                  </div>
+                  <div className="adm-meta-item">
+                    <span className="adm-meta-label">Members</span>
+                    <span className="adm-meta-value">{selected.memberCount}</span>
+                  </div>
+                </div>
               )}
             </section>
 
-            {/* ALERTS */}
             {error && (
               <div className="adm-alert adm-alert-error">
                 <FiAlertCircle size={15} />
@@ -307,45 +458,222 @@ export default function AdminSemesterPage() {
               </div>
             )}
 
-            {/* STATS */}
             {selected && (
-              <div className="adm-stats">
-                <div className="adm-stat">
-                  <div className="adm-stat-icon"><FiUsers size={18} /></div>
+              <section className="adm-panel">
+                <div className="adm-panel-head">
                   <div>
-                    <div className="adm-stat-value">{roster.count}</div>
-                    <div className="adm-stat-label">Members</div>
+                    <h3><FiLink size={14} /> Share registration link</h3>
+                    <p className="adm-panel-sub">
+                      Send this link so members can register for{" "}
+                      <strong>{selected.title}</strong>
+                    </p>
                   </div>
                 </div>
-                <div className="adm-stat">
-                  <div className="adm-stat-icon"><FiCheck size={18} /></div>
-                  <div>
-                    <div className="adm-stat-value">{roster.alumniCount || 0}</div>
-                    <div className="adm-stat-label">Alumni</div>
-                  </div>
+
+                <div className="adm-share-link">
+                  <FiLink size={14} className="adm-share-icon" />
+                  <input
+                    type="text"
+                    readOnly
+                    value={registrationUrl}
+                    onFocus={(e) => e.target.select()}
+                    className="adm-share-input"
+                  />
+                  <button
+                    className={`adm-btn adm-btn-primary adm-share-copy ${copied ? "copied" : ""}`}
+                    onClick={handleCopyLink}
+                  >
+                    {copied ? <FiCheck size={13} /> : <FiCopy size={13} />}
+                    {copied ? "Copied" : "Copy"}
+                  </button>
                 </div>
-                <div className="adm-stat">
-                  <div className="adm-stat-icon"><FiAlertCircle size={18} /></div>
-                  <div>
-                    <div className="adm-stat-value">{roster.withoutAdmission || 0}</div>
-                    <div className="adm-stat-label">Missing Adm. No.</div>
-                  </div>
+
+                <div className="adm-btn-row adm-share-actions">
+                  <button
+                    className="adm-btn adm-btn-whatsapp"
+                    onClick={handleWhatsAppShare}
+                  >
+                    <FaWhatsapp size={14} /> WhatsApp
+                  </button>
+                  <button
+                    className="adm-btn adm-btn-ghost"
+                    onClick={handleNativeShare}
+                  >
+                    <FiShare2 size={13} /> Share
+                  </button>
+                  <button
+                    className="adm-btn adm-btn-primary"
+                    onClick={toggleAddPanel}
+                  >
+                    <FiUserPlus size={13} /> Register a member
+                  </button>
                 </div>
-                <div className="adm-stat">
-                  <div className="adm-stat-icon">
-                    {selected.registrationOpen ? <FiUnlock size={18} /> : <FiLock size={18} />}
-                  </div>
-                  <div>
-                    <div className="adm-stat-value">
-                      {selected.registrationOpen ? "Open" : "Closed"}
+
+                {!selected.registrationOpen && (
+                  <p className="adm-share-warn">
+                    <FiAlertCircle size={13} />
+                    Registration is currently closed — open it before sharing.
+                  </p>
+                )}
+
+                {showAddPanel && (
+                  <div className="adm-add-panel">
+                    <div className="adm-add-head">
+                      <h4>Register a member manually</h4>
+                      <button
+                        className="adm-add-close"
+                        onClick={toggleAddPanel}
+                        aria-label="Close"
+                      >
+                        <FiX size={14} />
+                      </button>
                     </div>
-                    <div className="adm-stat-label">Registration</div>
+
+                    {!pickedUser ? (
+                      <>
+                        <div className="adm-search-row">
+                          <div className="adm-search">
+                            <FiSearch size={14} />
+                            <input
+                              type="text"
+                              placeholder="Search member by name, email, membership #"
+                              value={userQuery}
+                              onChange={(e) => setUserQuery(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        {userSearching && (
+                          <div className="adm-user-loading">Loading users…</div>
+                        )}
+
+                        {!userSearching && userResults.length > 0 && (
+                          <div className="adm-user-results">
+                            {userResults.map((u) => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                className={`adm-user-result ${u.alreadyRegistered ? "registered" : ""}`}
+                                onClick={() => !u.alreadyRegistered && pickUser(u)}
+                                disabled={u.alreadyRegistered}
+                              >
+                                <div className="adm-user-result-name">
+                                  {u.fullName}
+                                  {u.alreadyRegistered && (
+                                    <span className="adm-user-result-tag">Registered</span>
+                                  )}
+                                </div>
+                                <div className="adm-user-result-meta">
+                                  {u.membership_number || "—"} · {u.email || "no email"}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {!userSearching && userResults.length === 0 && (
+                          <div className="adm-user-loading">
+                            No matching users.
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="adm-picked-user">
+                          <div>
+                            <div className="adm-picked-name">
+                              {pickedUser.fullName}
+                            </div>
+                            <div className="adm-picked-meta">
+                              {pickedUser.membership_number || "—"} ·{" "}
+                              {pickedUser.email || "no email"}
+                            </div>
+                          </div>
+                          <button
+                            className="adm-add-close"
+                            onClick={clearPickedUser}
+                            title="Change user"
+                          >
+                            <FiX size={14} />
+                          </button>
+                        </div>
+
+                        <div className="adm-add-fields">
+                          <label className="adm-add-field">
+                            <span>Admission number</span>
+                            <input
+                              type="text"
+                              value={addAdmission}
+                              onChange={(e) => setAddAdmission(e.target.value)}
+                              placeholder="e.g. BAF-05-0029/2024 or N/A"
+                            />
+                          </label>
+
+                          <label className="adm-add-field">
+                            <span>Contact</span>
+                            <input
+                              type="tel"
+                              value={addContact}
+                              onChange={(e) => setAddContact(e.target.value)}
+                              placeholder="e.g. 0798139693"
+                            />
+                          </label>
+
+                          <label className="adm-add-field">
+                            <span>Role</span>
+                            <input
+                              type="text"
+                              value={addRole}
+                              onChange={(e) => setAddRole(e.target.value)}
+                              placeholder="e.g. member, chairperson"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="adm-btn-row adm-add-actions">
+                          <button
+                            className="adm-btn adm-btn-ghost"
+                            onClick={clearPickedUser}
+                            disabled={addBusy}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            className="adm-btn adm-btn-primary"
+                            onClick={submitAddUser}
+                            disabled={addBusy}
+                          >
+                            <FiCheck size={13} />
+                            {addBusy ? "Registering…" : "Register member"}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
+                )}
+              </section>
+            )}
+
+            {selected && (
+              <div className="adm-summary">
+                <span className="adm-summary-item">
+                  <FiUsers size={14} /> {roster.count} member{roster.count !== 1 ? "s" : ""}
+                </span>
+                {roster.alumniCount > 0 && (
+                  <span className="adm-summary-item">· {roster.alumniCount} alumni</span>
+                )}
+                {roster.withoutAdmission > 0 && (
+                  <span className="adm-summary-item adm-summary-warn">
+                    · {roster.withoutAdmission} missing admission no.
+                  </span>
+                )}
+                <span className="adm-summary-item">
+                  · Registration {selected.registrationOpen ? "open" : "closed"}
+                </span>
+                {rosterLoading && <span className="adm-loading-dot" />}
               </div>
             )}
 
-            {/* SECTION TABS */}
             {selected && (
               <nav className="adm-section-tabs">
                 <button
@@ -369,7 +697,6 @@ export default function AdminSemesterPage() {
               </nav>
             )}
 
-            {/* CONTROLS */}
             {selected && activeSection === "controls" && (
               <section className="adm-panel">
                 <div className="adm-panel-head">
@@ -409,15 +736,46 @@ export default function AdminSemesterPage() {
                     <FiRefreshCw size={13} />
                     {busyAction === "resend" ? "Sending…" : "Resend Notifications"}
                   </button>
-                  <button className="adm-btn adm-btn-ghost" onClick={exportCSV}>
+                </div>
+
+                <div className="adm-btn-row">
+                  <span className="adm-export-label">Export:</span>
+                  <button
+                    className="adm-btn adm-btn-ghost"
+                    onClick={() => exportRoster("xlsx")}
+                    disabled={!!exporting}
+                  >
                     <FiDownload size={13} />
-                    Export CSV
+                    {exporting === "xlsx" ? "Exporting…" : "Excel"}
+                  </button>
+                  <button
+                    className="adm-btn adm-btn-ghost"
+                    onClick={() => exportRoster("pdf")}
+                    disabled={!!exporting}
+                  >
+                    <FiDownload size={13} />
+                    {exporting === "pdf" ? "Exporting…" : "PDF"}
+                  </button>
+                  <button
+                    className="adm-btn adm-btn-ghost"
+                    onClick={() => exportRoster("doc")}
+                    disabled={!!exporting}
+                  >
+                    <FiDownload size={13} />
+                    {exporting === "doc" ? "Exporting…" : "Word"}
+                  </button>
+                  <button
+                    className="adm-btn adm-btn-ghost"
+                    onClick={() => exportRoster("csv")}
+                    disabled={!!exporting}
+                  >
+                    <FiDownload size={13} />
+                    {exporting === "csv" ? "Exporting…" : "CSV"}
                   </button>
                 </div>
               </section>
             )}
 
-            {/* NOTIFICATION SETTINGS */}
             {selected && activeSection === "notifications" && (
               <section className="adm-panel">
                 <div className="adm-panel-head">
@@ -459,19 +817,15 @@ export default function AdminSemesterPage() {
               </section>
             )}
 
-            {/* ROSTER */}
             {selected && activeSection === "overview" && (
               <section className="adm-panel">
                 <div className="adm-panel-head">
                   <div>
                     <h3>Member roster</h3>
                     <p className="adm-panel-sub">
-                      {roster.count} member{roster.count !== 1 ? "s" : ""} registered
-                      {roster.alumniCount > 0 && ` · ${roster.alumniCount} alumni`}
-                      {roster.withoutAdmission > 0 && ` · ${roster.withoutAdmission} missing adm. no.`}
+                      Scroll horizontally to see all columns
                     </p>
                   </div>
-                  {rosterLoading && <span className="adm-loading-dot" />}
                 </div>
 
                 {roster.members.length === 0 ? (
@@ -485,38 +839,48 @@ export default function AdminSemesterPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="adm-table">
-                    <div className="adm-tr adm-tr-head">
-                      <div className="adm-th">#</div>
-                      <div className="adm-th">Name</div>
-                      <div className="adm-th">Admission No.</div>
-                      <div className="adm-th">Contact</div>
-                      <div className="adm-th">Role</div>
-                      <div className="adm-th adm-th-action"></div>
-                    </div>
-                    {roster.members.map((m) => (
-                      <div key={m.userId} className="adm-tr">
-                        <div className="adm-td adm-td-num">{m.index}</div>
-                        <div className="adm-td adm-td-name">{m.name}</div>
-                        <div className="adm-td adm-td-mono">
-                          {m.admissionNumber || <span className="adm-missing">—</span>}
-                          {m.isAlumni && (
-                            <span className="adm-alumni-tag">Alumnus</span>
-                          )}
-                        </div>
-                        <div className="adm-td adm-td-mono">{m.contact || "—"}</div>
-                        <div className="adm-td">{m.role || "member"}</div>
-                        <div className="adm-td adm-td-action">
-                          <button
-                            className="adm-remove-btn"
-                            onClick={() => removeMember(m.userId, m.name)}
-                            title="Remove from semester"
-                          >
-                            <FiTrash2 size={12} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="adm-table-wrapper">
+                    <table className="adm-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Name</th>
+                          <th>Admission No.</th>
+                          <th>Contact</th>
+                          <th>Role</th>
+                          <th>Registered</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {roster.members.map((m) => (
+                          <tr key={m.userId}>
+                            <td className="adm-td-num">{m.index}</td>
+                            <td className="adm-td-name">{m.name}</td>
+                            <td className="adm-td-mono">
+                              {m.admissionNumber || <span className="adm-missing">—</span>}
+                              {m.isAlumni && (
+                                <span className="adm-alumni-tag">Alumnus</span>
+                              )}
+                            </td>
+                            <td className="adm-td-mono">{m.contact || "—"}</td>
+                            <td>{m.role || "member"}</td>
+                            <td className="adm-td-mono">
+                              {m.registeredAt ? fmtDate(m.registeredAt) : "—"}
+                            </td>
+                            <td className="adm-td-action">
+                              <button
+                                className="adm-remove-btn"
+                                onClick={() => removeMember(m.userId, m.name)}
+                                title="Remove from semester"
+                              >
+                                <FiTrash2 size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </section>
@@ -532,9 +896,6 @@ export default function AdminSemesterPage() {
   );
 }
 
-/* ================================================================
-   ToggleRow
-   ================================================================ */
 function ToggleRow({ label, checked, onChange, disabled }) {
   return (
     <label className={`adm-toggle ${disabled ? "disabled" : ""}`}>
@@ -551,11 +912,7 @@ function ToggleRow({ label, checked, onChange, disabled }) {
   );
 }
 
-/* ================================================================
-   CSS — matches the Birthday admin look
-   ================================================================ */
 const css = `
-  /* ===================== PAGE ===================== */
   .adm-page {
     background: #fafafa;
     min-height: 100vh;
@@ -565,7 +922,6 @@ const css = `
   }
   .adm-container { padding: 28px 24px 60px; max-width: 1180px; margin: 0 auto; }
 
-  /* ===================== HEADER ===================== */
   .adm-header {
     display: flex; justify-content: space-between; align-items: flex-end;
     gap: 20px; flex-wrap: wrap; padding-bottom: 22px;
@@ -589,7 +945,6 @@ const css = `
   .adm-subtitle { font-size: 13.5px; color: #737373; margin: 4px 0 0 0; }
   .adm-header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
-  /* ===================== BUTTONS ===================== */
   .adm-btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 13px; border-radius: 9px; border: 1px solid #e5e5e5;
@@ -603,11 +958,19 @@ const css = `
   .adm-btn-primary:hover:not(:disabled) { background: #262626; border-color: #262626; }
   .adm-btn-ghost { background: #ffffff; color: #262626; border-color: #e5e5e5; }
   .adm-btn-ghost:hover:not(:disabled) { background: #f5f5f5; border-color: #d4d4d4; }
+  .adm-btn-whatsapp { background: #25D366; color: #ffffff; border-color: #25D366; }
+  .adm-btn-whatsapp:hover { background: #1ebe5b; border-color: #1ebe5b; }
 
-  .adm-btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .adm-btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
   .adm-btn-row:last-child { margin-bottom: 0; }
 
-  /* ===================== ALERTS ===================== */
+  .adm-export-label {
+    display: inline-flex; align-items: center;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: #a3a3a3; padding: 0 4px;
+  }
+
   .adm-alert {
     display: flex; align-items: center; gap: 10px;
     padding: 12px 16px; border-radius: 10px; margin-bottom: 16px;
@@ -616,30 +979,134 @@ const css = `
   .adm-alert-success { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
   .adm-alert-error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 
-  /* ===================== STATS ===================== */
-  .adm-stats {
-    display: grid; grid-template-columns: repeat(4, 1fr);
-    gap: 12px; margin-bottom: 22px;
+  .adm-share-link {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid #e5e5e5; border-radius: 10px;
+    padding: 6px 6px 6px 12px; background: #ffffff;
+    transition: border-color .15s ease;
   }
-  @media (max-width: 768px) { .adm-stats { grid-template-columns: repeat(2, 1fr); } }
-  .adm-stat {
-    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 12px;
-    padding: 16px 18px; display: flex; align-items: center; gap: 14px;
+  .adm-share-link:focus-within { border-color: #0f0f0f; }
+  .adm-share-icon { color: #a3a3a3; flex-shrink: 0; }
+  .adm-share-input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 12.5px; color: #262626;
+    padding: 6px 0; min-width: 0;
   }
-  .adm-stat-icon {
-    width: 40px; height: 40px; border-radius: 10px; background: #f5f5f5;
-    color: #262626; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  .adm-share-copy { flex-shrink: 0; border-radius: 8px !important; }
+  .adm-share-copy.copied {
+    background: #15803d !important; border-color: #15803d !important;
   }
-  .adm-stat-value {
-    font-size: 22px; font-weight: 800; color: #0f0f0f;
-    letter-spacing: -.5px; line-height: 1.1;
+  .adm-share-actions { margin-top: 10px; margin-bottom: 0; }
+  .adm-share-warn {
+    display: flex; align-items: center; gap: 8px;
+    margin: 12px 0 0; padding: 10px 12px;
+    background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+    border-radius: 8px; font-size: 12.5px; font-weight: 500;
   }
-  .adm-stat-label {
-    font-size: 11px; color: #737373; text-transform: uppercase;
-    letter-spacing: .05em; font-weight: 600; margin-top: 2px;
+  .adm-share-warn svg { flex-shrink: 0; }
+
+  .adm-add-panel {
+    margin-top: 16px; padding: 16px;
+    border: 1px solid #e5e5e5; border-radius: 12px;
+    background: #fafafa;
+  }
+  .adm-add-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px;
+  }
+  .adm-add-head h4 {
+    margin: 0; font-size: 13px; font-weight: 700; color: #0f0f0f;
+  }
+  .adm-add-close {
+    background: transparent; border: none; cursor: pointer;
+    color: #737373; padding: 4px; border-radius: 6px; display: flex;
+  }
+  .adm-add-close:hover { background: #f0f0f0; color: #0f0f0f; }
+
+  .adm-search-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .adm-search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 9px;
+    padding: 0 12px; height: 38px; color: #737373;
+    transition: border-color .15s ease;
+  }
+  .adm-search:focus-within { border-color: #0f0f0f; }
+  .adm-search input {
+    flex: 1; border: none; outline: none; background: transparent;
+    font-size: 13px; color: #171717; font-family: inherit; height: 100%;
+  }
+  .adm-search input::placeholder { color: #a3a3a3; }
+
+  .adm-user-results {
+    margin-top: 10px; border: 1px solid #e5e5e5; border-radius: 10px;
+    background: #ffffff; max-height: 280px; overflow-y: auto;
+  }
+  .adm-user-result {
+    display: block; width: 100%; text-align: left;
+    padding: 10px 14px; border: none; background: transparent;
+    cursor: pointer; border-bottom: 1px solid #f5f5f5;
+    font-family: inherit;
+  }
+  .adm-user-result:last-child { border-bottom: none; }
+  .adm-user-result:hover:not(:disabled) { background: #fafafa; }
+  .adm-user-result:disabled { cursor: not-allowed; opacity: .6; }
+  .adm-user-result.registered { background: #fafafa; }
+  .adm-user-result-name {
+    font-size: 13px; font-weight: 600; color: #0f0f0f;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .adm-user-result-meta { font-size: 12px; color: #737373; margin-top: 2px; }
+  .adm-user-result-tag {
+    display: inline-block; padding: 1px 6px;
+    background: #eef2f7; color: #525252;
+    border-radius: 999px; font-size: 10px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  .adm-user-loading {
+    margin-top: 10px; padding: 12px 14px;
+    background: #ffffff; border: 1px dashed #e5e5e5; border-radius: 10px;
+    font-size: 12.5px; color: #737373; text-align: center;
   }
 
-  /* ===================== SECTION TABS ===================== */
+  .adm-picked-user {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; background: #ffffff; border: 1px solid #e5e5e5;
+    border-radius: 10px; margin-bottom: 12px;
+  }
+  .adm-picked-name { font-size: 13px; font-weight: 700; color: #0f0f0f; }
+  .adm-picked-meta { font-size: 12px; color: #737373; margin-top: 2px; }
+
+  .adm-add-fields {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; margin-bottom: 14px;
+  }
+  .adm-add-field { display: flex; flex-direction: column; gap: 6px; }
+  .adm-add-field span {
+    font-size: 10.5px; font-weight: 700; color: #737373;
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  .adm-add-field input {
+    width: 100%; padding: 10px 12px; border: 1px solid #e5e5e5;
+    border-radius: 9px; font-size: 13px; font-family: inherit;
+    background: #ffffff; color: #171717; outline: none;
+  }
+  .adm-add-field input:focus {
+    border-color: #0f0f0f; box-shadow: 0 0 0 3px rgba(15,15,15,.06);
+  }
+  .adm-add-actions { justify-content: flex-end; }
+
+  .adm-summary {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 12px 16px; margin-bottom: 20px;
+    background: #ffffff; border: 1px solid #e5e5e5; border-radius: 10px;
+    font-size: 13px; color: #525252; font-weight: 500;
+  }
+  .adm-summary-item { display: inline-flex; align-items: center; gap: 6px; }
+  .adm-summary-item svg { color: #a3a3a3; }
+  .adm-summary-warn { color: #b45309; }
+
   .adm-section-tabs {
     display: flex; gap: 4px; background: #f5f5f5; padding: 4px;
     border-radius: 10px; margin-bottom: 16px; width: fit-content; max-width: 100%;
@@ -657,7 +1124,6 @@ const css = `
     background: #ffffff; color: #0f0f0f; box-shadow: 0 1px 3px rgba(0,0,0,.06);
   }
 
-  /* ===================== PANEL ===================== */
   .adm-panel {
     background: #ffffff; border: 1px solid #e5e5e5; border-radius: 14px;
     padding: 20px; margin-bottom: 20px;
@@ -670,7 +1136,9 @@ const css = `
     font-size: 14px; font-weight: 700; color: #0f0f0f; margin: 0;
     display: flex; align-items: center; gap: 8px;
   }
-  .adm-panel-sub { font-size: 12.5px; color: #a3a3a3; margin: 4px 0 0 0; }
+  .adm-panel-head h3 svg { color: #737373; }
+  .adm-panel-sub { font-size: 12.5px; color: #a3a3a3; margin: 4px 0 0 0; line-height: 1.5; }
+  .adm-panel-sub strong { color: #525252; font-weight: 600; }
 
   .adm-loading-dot {
     width: 8px; height: 8px; border-radius: 50%;
@@ -679,7 +1147,6 @@ const css = `
   }
   @keyframes adm-pulse { 0%,100% { opacity: .4 } 50% { opacity: 1 } }
 
-  /* ===================== SELECTOR ===================== */
   .adm-select {
     width: 100%; padding: 11px 14px; border: 1px solid #e5e5e5;
     border-radius: 10px; background: #ffffff;
@@ -703,7 +1170,6 @@ const css = `
   }
   .adm-meta-value { font-size: 13.5px; font-weight: 600; color: #0f0f0f; }
 
-  /* ===================== STATUS ===================== */
   .adm-status {
     display: inline-flex; align-items: center; gap: 6px;
     font-size: 11px; font-weight: 700;
@@ -715,7 +1181,6 @@ const css = `
   .adm-status.closed { color: #b91c1c; }
   .adm-status.closed .adm-status-dot { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.15); }
 
-  /* ===================== TOGGLES ===================== */
   .adm-toggle-list { display: flex; flex-direction: column; gap: 10px; }
   .adm-toggle {
     display: flex; align-items: center; gap: 12px;
@@ -742,43 +1207,54 @@ const css = `
   .adm-toggle-input:checked + .adm-toggle-slider::after { transform: translateX(16px); }
   .adm-toggle-label { font-size: 13px; font-weight: 500; color: #262626; line-height: 1.4; }
 
-  /* ===================== ROSTER TABLE ===================== */
+  .adm-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 320px);
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    background: #ffffff;
+    -webkit-overflow-scrolling: touch;
+  }
   .adm-table {
-    border: 1px solid #e5e5e5; border-radius: 10px;
-    overflow: hidden; font-size: 12.5px;
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
   }
-  .adm-tr {
-    display: grid;
-    grid-template-columns: 44px minmax(140px,1.6fr) minmax(140px,1.4fr) minmax(120px,1fr) minmax(90px,.9fr) 48px;
-    align-items: center; border-bottom: 1px solid #f5f5f5;
-  }
-  .adm-tr:last-child { border-bottom: 0; }
-  .adm-tr-head { background: #fafafa; border-bottom: 1px solid #e5e5e5; }
-  .adm-tr:not(.adm-tr-head):hover { background: #fafafa; }
-
-  .adm-th {
-    padding: 10px 14px;
+  .adm-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    padding: 12px 14px;
+    background: #fafafa;
+    border-bottom: 1px solid #e5e5e5;
     font-size: 10px; font-weight: 700;
     letter-spacing: .08em; text-transform: uppercase;
-    color: #a3a3a3;
+    color: #a3a3a3; text-align: left;
+    white-space: nowrap;
   }
-  .adm-th-action { text-align: right; }
+  .adm-table tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #f5f5f5;
+    color: #525252;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .adm-table tbody tr:last-child td { border-bottom: 0; }
+  .adm-table tbody tr:hover { background: #fafafa; }
 
-  .adm-td {
-    padding: 12px 14px; color: #525252;
-    overflow-wrap: anywhere; min-width: 0;
-  }
   .adm-td-num {
     color: #a3a3a3; font-weight: 700;
     font-family: 'SF Mono', Menlo, Consolas, monospace;
     font-size: 11.5px;
+    width: 48px;
   }
-  .adm-td-name { font-weight: 600; color: #0f0f0f; font-size: 13px; line-height: 1.35; }
+  .adm-td-name { font-weight: 600; color: #0f0f0f; font-size: 13px; }
   .adm-td-mono {
     font-family: 'SF Mono', Menlo, Consolas, monospace;
     font-size: 11.5px; color: #525252;
   }
-  .adm-td-action { text-align: right; }
+  .adm-td-action { text-align: right; width: 60px; }
 
   .adm-missing { color: #b45309; }
   .adm-alumni-tag {
@@ -788,6 +1264,7 @@ const css = `
     border: 1px solid #ddd6fe; border-radius: 999px;
     font-size: 10px; font-weight: 700;
     letter-spacing: .04em; text-transform: uppercase;
+    white-space: nowrap;
   }
 
   .adm-remove-btn {
@@ -801,7 +1278,6 @@ const css = `
     background: #fef2f2; color: #dc2626; border-color: #fecaca;
   }
 
-  /* ===================== EMPTY / INLINE ===================== */
   .adm-empty {
     background: #ffffff; border: 1px solid #e5e5e5; border-radius: 14px;
     padding: 56px 32px; text-align: center;
@@ -819,7 +1295,6 @@ const css = `
   .adm-empty-inline-title { font-size: 13px; font-weight: 600; color: #262626; }
   .adm-empty-inline-sub { font-size: 12px; color: #a3a3a3; margin-top: 2px; }
 
-  /* ===================== SKELETON ===================== */
   .adm-skel-line {
     height: 14px; border-radius: 6px; margin-bottom: 14px;
     background: linear-gradient(90deg,#f0f0f0 25%,#e5e5e5 50%,#f0f0f0 75%);
@@ -829,7 +1304,6 @@ const css = `
   .adm-skel-line.title { height: 24px; max-width: 60%; }
   @keyframes adm-sk { to { background-position: -200% 0 } }
 
-  /* ===================== FOOTER ===================== */
   .adm-footer {
     padding: 18px 0 0; text-align: center;
     font-size: 10px; font-weight: 700;
@@ -837,25 +1311,22 @@ const css = `
     color: #a3a3a3;
   }
 
-  /* ===================== RESPONSIVE ===================== */
   @media (max-width: 720px) {
     .adm-container { padding: 20px 16px 40px; }
     .adm-title { font-size: 22px; }
-    .adm-tr { grid-template-columns: 40px 1fr 48px; row-gap: 6px; }
-    .adm-th:nth-child(3),
-    .adm-th:nth-child(4),
-    .adm-th:nth-child(5) { display: none; }
-    .adm-td:nth-child(3),
-    .adm-td:nth-child(4),
-    .adm-td:nth-child(5) {
-      grid-column: 2 / 3; padding-top: 0; padding-bottom: 4px;
-    }
-    .adm-td-num { grid-row: span 4; padding-top: 14px; }
-    .adm-td-action { grid-row: 1 / 5; align-self: start; padding-top: 12px; }
-    .adm-td-mono { font-size: 11px; }
     .adm-header { flex-direction: column; align-items: stretch; }
     .adm-header-actions { width: 100%; }
     .adm-btn-row { flex-direction: column; }
-    .adm-btn { width: 100%; justify-content: center; }
+    .adm-btn-row .adm-btn { width: 100%; justify-content: center; }
+
+    .adm-share-link { flex-wrap: wrap; padding: 8px; gap: 8px; }
+    .adm-share-input { padding: 6px 0; min-width: 100%; font-size: 12px; }
+    .adm-share-copy { width: 100%; justify-content: center; }
+
+    .adm-add-fields { grid-template-columns: 1fr; }
+    .adm-search-row { flex-direction: column; }
+    .adm-search { min-width: 100%; }
+
+    .adm-summary { font-size: 12.5px; gap: 6px; }
   }
 `;

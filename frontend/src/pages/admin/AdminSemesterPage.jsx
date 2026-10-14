@@ -5,6 +5,7 @@ import {
   FiArrowLeft, FiCalendar, FiCheck, FiAlertCircle, FiDownload,
   FiRefreshCw, FiUsers, FiTrash2, FiUnlock, FiLock,
   FiLink, FiCopy, FiShare2, FiUserPlus, FiSearch, FiX, FiSend, FiMessageCircle,
+  FiExternalLink,
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import zucaLogo from "../../assets/zuca-logo.png";
@@ -50,6 +51,12 @@ export default function AdminSemesterPage() {
   const [whatsappLoading, setWhatsappLoading] = useState(false);
   const [whatsappSaving, setWhatsappSaving] = useState(false);
   const [whatsappSending, setWhatsappSending] = useState(false);
+
+  const [rosterSheetUrl, setRosterSheetUrl] = useState("");
+  const [sheetAutoPushOnRegister, setSheetAutoPushOnRegister] = useState(true);
+  const [sheetAutoPushOnClose, setSheetAutoPushOnClose] = useState(true);
+  const [sheetSaving, setSheetSaving] = useState(false);
+  const [sheetPushing, setSheetPushing] = useState(false);
 
   const searchTimer = useRef(null);
   const selected = semesters.find((s) => s.id === selectedId) || null;
@@ -134,6 +141,19 @@ export default function AdminSemesterPage() {
   };
 
   useEffect(() => { loadRoster(selectedId); /* eslint-disable-next-line */ }, [selectedId]);
+
+  useEffect(() => {
+    if (selected?.rosterSheetId) {
+      setRosterSheetUrl(
+        `https://docs.google.com/spreadsheets/d/${selected.rosterSheetId}/edit`
+      );
+    } else {
+      setRosterSheetUrl("");
+    }
+    setSheetAutoPushOnRegister(selected?.sheetAutoPushOnRegister !== false);
+    setSheetAutoPushOnClose(selected?.sheetAutoPushOnClose !== false);
+    /* eslint-disable-next-line */
+  }, [selectedId, semesters]);
 
   const loadWhatsAppData = async () => {
     setWhatsappLoading(true);
@@ -334,6 +354,51 @@ export default function AdminSemesterPage() {
     }
   };
 
+  const saveRosterSheet = async () => {
+    if (!selectedId) return;
+    setSheetSaving(true);
+    setError(""); setSuccess("");
+    try {
+      const res = await axios.put(
+        `${BASE_URL}/api/semesters/${selectedId}/sheet-settings`,
+        {
+          sheetUrl: rosterSheetUrl,
+          sheetAutoPushOnRegister,
+          sheetAutoPushOnClose,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSuccess(
+        res.data.semester?.rosterSheetId
+          ? "Google Sheet settings saved."
+          : "Google Sheet unlinked."
+      );
+      await loadSemesters();
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not save sheet settings.");
+    } finally {
+      setSheetSaving(false);
+    }
+  };
+
+  const pushToSheetNow = async () => {
+    if (!selectedId) return;
+    setSheetPushing(true);
+    setError(""); setSuccess("");
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/api/semesters/${selectedId}/export-to-google-sheet`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSuccess(res.data.message || "Roster pushed to Google Sheet.");
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not push to Google Sheet.");
+    } finally {
+      setSheetPushing(false);
+    }
+  };
+
   const removeMember = async (userId, name) => {
     if (!selectedId) return;
     if (!window.confirm(`Remove ${name} from this semester?`)) return;
@@ -457,6 +522,7 @@ export default function AdminSemesterPage() {
   const tabs = [
     { id: "roster", label: "Roster", icon: FiUsers },
     { id: "share", label: "Share", icon: FiShare2 },
+    { id: "sheet", label: "Google Sheet", icon: FiLink },
     { id: "controls", label: "Controls", icon: FiUnlock },
     { id: "whatsapp", label: "WhatsApp", icon: FaWhatsapp },
     { id: "notifications", label: "Notifications", icon: FiRefreshCw },
@@ -583,124 +649,16 @@ export default function AdminSemesterPage() {
                         ` · ${roster.withoutAdmission} missing admission no.`}
                     </p>
                   </div>
-                  {rosterLoading && <span className="adm-loading-dot" />}
-                </div>
-
-                {roster.members.length === 0 ? (
-                  <div className="adm-empty-inline">
-                    <FiUsers size={18} />
-                    <div>
-                      <div className="adm-empty-inline-title">No members yet</div>
-                      <div className="adm-empty-inline-sub">
-                        Members who register will appear here
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="adm-table-wrapper">
-                    <table className="adm-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Name</th>
-                          <th>Admission No.</th>
-                          <th>Contact</th>
-                          <th>Role</th>
-                          <th>Registered</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {roster.members.map((m) => (
-                          <tr key={m.userId}>
-                            <td className="adm-td-num">{m.index}</td>
-                            <td className="adm-td-name">{m.name}</td>
-                            <td className="adm-td-mono">
-                              {m.admissionNumber || <span className="adm-missing">—</span>}
-                              {m.isAlumni && (
-                                <span className="adm-alumni-tag">Alumnus</span>
-                              )}
-                            </td>
-                            <td className="adm-td-mono">{m.contact || "—"}</td>
-                            <td>{m.role || "member"}</td>
-                            <td className="adm-td-mono">
-                              {m.registeredAt ? fmtDate(m.registeredAt) : "—"}
-                            </td>
-                            <td className="adm-td-action">
-                              <button
-                                className="adm-remove-btn"
-                                onClick={() => removeMember(m.userId, m.name)}
-                                title="Remove from semester"
-                              >
-                                <FiTrash2 size={12} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
-            )}
-
-            {selected && activeSection === "share" && (
-              <section className="adm-panel">
-                <div className="adm-panel-head">
-                  <div>
-                    <h3><FiLink size={14} /> Share registration link</h3>
-                    <p className="adm-panel-sub">
-                      Send this link so members can register for{" "}
-                      <strong>{selected.title}</strong>
-                    </p>
+                  <div className="adm-panel-actions">
+                    {rosterLoading && <span className="adm-loading-dot" />}
+                    <button
+                      className="adm-btn adm-btn-primary"
+                      onClick={toggleAddPanel}
+                    >
+                      <FiUserPlus size={13} /> Register a member
+                    </button>
                   </div>
                 </div>
-
-                <div className="adm-share-link">
-                  <FiLink size={14} className="adm-share-icon" />
-                  <input
-                    type="text"
-                    readOnly
-                    value={registrationUrl}
-                    onFocus={(e) => e.target.select()}
-                    className="adm-share-input"
-                  />
-                  <button
-                    className={`adm-btn adm-btn-primary adm-share-copy ${copied ? "copied" : ""}`}
-                    onClick={handleCopyLink}
-                  >
-                    {copied ? <FiCheck size={13} /> : <FiCopy size={13} />}
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                </div>
-
-                <div className="adm-btn-row adm-share-actions">
-                  <button
-                    className="adm-btn adm-btn-whatsapp"
-                    onClick={handleWhatsAppShare}
-                  >
-                    <FaWhatsapp size={14} /> WhatsApp
-                  </button>
-                  <button
-                    className="adm-btn adm-btn-ghost"
-                    onClick={handleNativeShare}
-                  >
-                    <FiShare2 size={13} /> Share
-                  </button>
-                  <button
-                    className="adm-btn adm-btn-primary"
-                    onClick={toggleAddPanel}
-                  >
-                    <FiUserPlus size={13} /> Register a member
-                  </button>
-                </div>
-
-                {!selected.registrationOpen && (
-                  <p className="adm-share-warn">
-                    <FiAlertCircle size={13} />
-                    Registration is currently closed — open it before sharing.
-                  </p>
-                )}
 
                 {showAddPanel && (
                   <div className="adm-add-panel">
@@ -837,6 +795,200 @@ export default function AdminSemesterPage() {
                     )}
                   </div>
                 )}
+
+                {roster.members.length === 0 ? (
+                  <div className="adm-empty-inline">
+                    <FiUsers size={18} />
+                    <div>
+                      <div className="adm-empty-inline-title">No members yet</div>
+                      <div className="adm-empty-inline-sub">
+                        Members who register will appear here
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="adm-table-wrapper">
+                    <table className="adm-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Name</th>
+                          <th>Admission No.</th>
+                          <th>Contact</th>
+                          <th>Role</th>
+                          <th>Registered</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {roster.members.map((m) => (
+                          <tr key={m.userId}>
+                            <td className="adm-td-num">{m.index}</td>
+                            <td className="adm-td-name">{m.name}</td>
+                            <td className="adm-td-mono">
+                              {m.admissionNumber || <span className="adm-missing">—</span>}
+                              {m.isAlumni && (
+                                <span className="adm-alumni-tag">Alumnus</span>
+                              )}
+                            </td>
+                            <td className="adm-td-mono">{m.contact || "—"}</td>
+                            <td>{m.role || "member"}</td>
+                            <td className="adm-td-mono">
+                              {m.registeredAt ? fmtDate(m.registeredAt) : "—"}
+                            </td>
+                            <td className="adm-td-action">
+                              <button
+                                className="adm-remove-btn"
+                                onClick={() => removeMember(m.userId, m.name)}
+                                title="Remove from semester"
+                              >
+                                <FiTrash2 size={12} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {selected && activeSection === "share" && (
+              <section className="adm-panel">
+                <div className="adm-panel-head">
+                  <div>
+                    <h3><FiLink size={14} /> Share registration link</h3>
+                    <p className="adm-panel-sub">
+                      Send this link so members can register for{" "}
+                      <strong>{selected.title}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="adm-share-link">
+                  <FiLink size={14} className="adm-share-icon" />
+                  <input
+                    type="text"
+                    readOnly
+                    value={registrationUrl}
+                    onFocus={(e) => e.target.select()}
+                    className="adm-share-input"
+                  />
+                  <button
+                    className={`adm-btn adm-btn-primary adm-share-copy ${copied ? "copied" : ""}`}
+                    onClick={handleCopyLink}
+                  >
+                    {copied ? <FiCheck size={13} /> : <FiCopy size={13} />}
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+
+                <div className="adm-btn-row adm-share-actions">
+                  <button
+                    className="adm-btn adm-btn-whatsapp"
+                    onClick={handleWhatsAppShare}
+                  >
+                    <FaWhatsapp size={14} /> WhatsApp
+                  </button>
+                  <button
+                    className="adm-btn adm-btn-ghost"
+                    onClick={handleNativeShare}
+                  >
+                    <FiShare2 size={13} /> Share
+                  </button>
+                </div>
+
+                {!selected.registrationOpen && (
+                  <p className="adm-share-warn">
+                    <FiAlertCircle size={13} />
+                    Registration is currently closed — open it before sharing.
+                  </p>
+                )}
+              </section>
+            )}
+
+            {selected && activeSection === "sheet" && (
+              <section className="adm-panel">
+                <div className="adm-panel-head">
+                  <div>
+                    <h3><FiLink size={14} /> Google Sheet roster</h3>
+                    <p className="adm-panel-sub">
+                      Link a Google Sheet. The roster updates there automatically, and you can push it any time.
+                    </p>
+                  </div>
+                  {sheetSaving && <span className="adm-loading-dot" />}
+                </div>
+
+                <div className="adm-sheet-section">
+                  <div className="adm-sheet-label">Sheet link</div>
+                  <p className="adm-sheet-hint">
+                    Paste the link from the school. The system will fill this semester's
+                    block on every registration.
+                  </p>
+                  <div className="adm-sheet-input-row">
+                    <input
+                      type="text"
+                      className="adm-sheet-input"
+                      value={rosterSheetUrl}
+                      onChange={(e) => setRosterSheetUrl(e.target.value)}
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                    />
+                  </div>
+
+                  {selected?.rosterSheetId && (
+                    <div className="adm-sheet-actions" style={{ marginTop: 10 }}>
+                      <a
+                        className="adm-btn adm-btn-ghost"
+                        href={`https://docs.google.com/spreadsheets/d/${selected.rosterSheetId}/edit`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <FiExternalLink size={13} /> Open sheet
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                <div className="adm-sheet-section">
+                  <div className="adm-sheet-label">Auto-update</div>
+                  <div className="adm-toggle-list">
+                    <ToggleRow
+                      label="Update sheet when a member registers"
+                      checked={sheetAutoPushOnRegister}
+                      onChange={setSheetAutoPushOnRegister}
+                      disabled={!selected?.rosterSheetId || sheetSaving}
+                    />
+                    <ToggleRow
+                      label="Update sheet when registration closes"
+                      checked={sheetAutoPushOnClose}
+                      onChange={setSheetAutoPushOnClose}
+                      disabled={!selected?.rosterSheetId || sheetSaving}
+                    />
+                  </div>
+                </div>
+
+                <div className="adm-btn-row">
+                  <button
+                    className="adm-btn adm-btn-primary"
+                    onClick={saveRosterSheet}
+                    disabled={sheetSaving}
+                  >
+                    <FiCheck size={13} />
+                    {sheetSaving ? "Saving…" : "Save settings"}
+                  </button>
+
+                  {selected?.rosterSheetId && (
+                    <button
+                      className="adm-btn adm-btn-ghost"
+                      onClick={pushToSheetNow}
+                      disabled={sheetPushing}
+                    >
+                      <FiDownload size={13} />
+                      {sheetPushing ? "Pushing…" : "Push all now"}
+                    </button>
+                  )}
+                </div>
               </section>
             )}
 
@@ -1150,6 +1302,7 @@ const css = `
     background: #ffffff; color: #262626; cursor: pointer;
     font-size: 12.5px; font-weight: 600;
     transition: all .15s ease; white-space: nowrap; font-family: inherit;
+    text-decoration: none;
   }
   .adm-btn:hover { background: #f5f5f5; border-color: #d4d4d4; }
   .adm-btn:disabled { opacity: .5; cursor: not-allowed; }
@@ -1213,8 +1366,45 @@ const css = `
   }
   .adm-share-warn svg { flex-shrink: 0; }
 
+  .adm-sheet-section {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .adm-sheet-section:last-of-type {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  .adm-sheet-label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: #525252; margin-bottom: 6px;
+  }
+  .adm-sheet-hint {
+    font-size: 12px; color: #a3a3a3;
+    margin: 0 0 12px; line-height: 1.5;
+  }
+  .adm-sheet-input-row {
+    display: flex; gap: 8px; align-items: stretch;
+  }
+  .adm-sheet-input {
+    flex: 1; min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #e5e5e5; border-radius: 9px;
+    font-size: 13px; font-family: inherit;
+    background: #ffffff; color: #171717; outline: none;
+  }
+  .adm-sheet-input:focus {
+    border-color: #0f0f0f;
+    box-shadow: 0 0 0 3px rgba(15,15,15,.06);
+  }
+  .adm-sheet-actions {
+    display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+  }
+
   .adm-add-panel {
-    margin-top: 16px; padding: 16px;
+    margin-bottom: 16px; padding: 16px;
     border: 1px solid #e5e5e5; border-radius: 12px;
     background: #fafafa;
   }
@@ -1338,6 +1528,9 @@ const css = `
   .adm-panel-head h3 svg { color: #737373; }
   .adm-panel-sub { font-size: 12.5px; color: #a3a3a3; margin: 4px 0 0 0; line-height: 1.5; }
   .adm-panel-sub strong { color: #525252; font-weight: 600; }
+  .adm-panel-actions {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
 
   .adm-export-block { margin-top: 6px; }
   .adm-export-label {
@@ -1610,6 +1803,8 @@ const css = `
 
     .adm-panel { padding: 16px; border-radius: 12px; margin-bottom: 16px; }
     .adm-panel-head { margin-bottom: 14px; }
+    .adm-panel-actions { width: 100%; }
+    .adm-panel-actions .adm-btn { width: 100%; justify-content: center; }
 
     .adm-btn-row { gap: 6px; }
     .adm-btn-row .adm-btn {
@@ -1636,6 +1831,17 @@ const css = `
     .adm-share-actions .adm-btn {
       flex: 1 1 calc(50% - 3px); justify-content: center;
     }
+
+    .adm-sheet-input-row {
+      flex-direction: column;
+    }
+    .adm-sheet-input-row .adm-btn {
+      width: 100%; justify-content: center;
+    }
+    .adm-sheet-actions {
+      flex-direction: column;
+    }
+    .adm-sheet-actions .adm-btn { width: 100%; justify-content: center; }
 
     .adm-add-fields { grid-template-columns: 1fr; gap: 10px; }
     .adm-search-row { flex-direction: column; }

@@ -16,6 +16,7 @@ import {
   FaAdversal,
   FaBirthdayCake,
   FaExclamationTriangle,
+  FaRegistered,
 } from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
@@ -237,6 +238,9 @@ export default function AdminLayout() {
       items: [
         { label: "Home View", path: "", icon: <FaShieldAlt />, end: true },
                 { label: "Attendance", path: "attendance", icon: <FiUsers /> },
+                  { label: "Registration", path: "semesters", icon: <FaRegistered /> },
+                
+
 
         { label: "Feedback Management", path: "feedback", icon: <FaComments /> },
         { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="green" /> },

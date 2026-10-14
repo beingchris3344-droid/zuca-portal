@@ -93,6 +93,7 @@ import WatermarkTool from "./tools/pdf/tools/WatermarkTool";
 import SplitTool from "./tools/pdf/tools/SplitTool";
 import ProtectTool from "./tools/pdf/tools/ProtectTool";
 import FillSignTool from "./tools/pdf/tools/FillSignTool";
+import MySemester from "./pages/MySemester";
 
 // GAMES
 import TicTacToe from "./pages/games/TicTacToe";
@@ -148,6 +149,7 @@ import CountdownSettings from './pages/admin/CountdownSettings';
 import Advertisements from "./pages/admin/Advertisements";
 import BirthdayManagement from "./pages/admin/BirthdayManagement";
 import TickerManager from "./pages/admin/TickerManager";
+import AdminSemesterPage from "./pages/admin/AdminSemesterPage";
 
 
 
@@ -541,6 +543,7 @@ useEffect(() => {
            <Route path="/messenger" element={<MessengerPage />} />  
           <Route path="/games" element={<Games />} />
           <Route path="/schedules" element={<UserSchedules />} />
+          <Route path="/semester-registration" element={<MySemester />} />
 
 
          
@@ -669,6 +672,7 @@ useEffect(() => {
   path="/admin/advertisements"
   element={<Advertisements />}
 />
+<Route path="semesters" element={<AdminSemesterPage />} />
 <Route
   path="/admin/birthday"
   element={<BirthdayManagement />}

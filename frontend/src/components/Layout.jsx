@@ -24,6 +24,7 @@ import {
   FaBirthdayCake, FaUser, FaRegFilePdf, FaSun,
   FaFilePdf,
   FaBible,
+  FaRegistered,
 } from "react-icons/fa";
 import { api } from "../api";
 import { io } from "socket.io-client";
@@ -258,6 +259,7 @@ function Layout() {
       items: [
         { path: "/dashboard", label: "Home", icon: <FaThLarge /> },
         { path: "/announcements", label: "Announcements", icon: <FiBell /> },
+        { path: "/semester-registration" , label: "Registration", icon: <FaRegistered/>},
         { path: "/schedules", label: "Semester Schedule", icon: <FaCalendarPlus /> },
        
         { path: "/contributions", label: "Contributions", icon: <FaHandHoldingHeart /> },

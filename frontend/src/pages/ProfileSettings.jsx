@@ -7,14 +7,14 @@ import {
   FiSave, FiUser, FiMail, FiPhone, FiLock, FiCheckCircle,
   FiAlertCircle, FiCamera, FiTrash2, FiArrowLeft, FiShield,
   FiEye, FiEyeOff, FiGift, FiSliders, FiDroplet, FiZoomIn, FiZoomOut,
-  FiCreditCard, FiPrinter, FiCopy,
+  FiCreditCard, FiPrinter, FiCopy, FiHash,
 } from "react-icons/fi";
 import BASE_URL from "../api";
 import zucaLogo from "../assets/zuca-logo.png";
 
 import ProfileImageCropper from "../components/ProfileImageCropper";
 import FingerprintRegistration from "../components/FingerprintRegistration";
-import { FaFingerprint } from "react-icons/fa";
+import { FaFingerprint, FaUniversity } from "react-icons/fa";
 import BirthdaySettings from "../components/BirthdaySettings";
 
 const guiltMessages = [
@@ -815,6 +815,7 @@ function ProfileSettings({ user, onUserUpdate }) {
     fullName: "",
     email: "",
     phone: "",
+    admissionNumber: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
@@ -865,6 +866,7 @@ function ProfileSettings({ user, onUserUpdate }) {
       fullName: user.fullName || "",
       email: user.email || "",
       phone: user.phone || "",
+      admissionNumber: user.admissionNumber || "",
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
@@ -1172,6 +1174,7 @@ function ProfileSettings({ user, onUserUpdate }) {
         fullName: formData.fullName,
         email: formData.email,
         phone: formData.phone,
+        admissionNumber: formData.admissionNumber,
       };
       if (showPasswordFields) {
         data.currentPassword = formData.currentPassword;
@@ -1257,7 +1260,7 @@ function ProfileSettings({ user, onUserUpdate }) {
       .slice(0, 2)
       .toUpperCase() || "U";
 
-    const tabs = [
+  const tabs = [
     { id: "general", label: "General", icon: <FiUser size={14} /> },
     { id: "security", label: "Security", icon: <FiShield size={14} /> },
     { id: "myid", label: "My ID", icon: <FiCreditCard size={14} /> },
@@ -1447,7 +1450,12 @@ function ProfileSettings({ user, onUserUpdate }) {
                 </span>
               )}
               {user?.homeJumuia?.name && (
-                <span style={s.metaChip}>🏠 {user.homeJumuia.name}</span>
+                <span style={s.metaChip}> {user.homeJumuia.name}</span>
+              )}
+              {user?.admissionNumber && (
+                <span style={s.metaChip}>
+                  <FaUniversity size={12}/> {user.admissionNumber}
+                </span>
               )}
             </div>
           </div>
@@ -1550,6 +1558,21 @@ function ProfileSettings({ user, onUserUpdate }) {
                         placeholder="+254 ..."
                       />
                     </Field>
+
+                    <Field icon={<FiHash size={14} />} label="Admission / Registration Number">
+                      <input
+                        type="text"
+                        name="admissionNumber"
+                        value={formData.admissionNumber}
+                        onChange={handleChange}
+                        style={s.input}
+                        autoComplete="off"
+                        placeholder="e.g. BAF-05-0029/2024 (or N/A for alumni)"
+                      />
+                      <p style={s.fieldHint}>
+                        Your Zetech admission number. Alumni can enter <strong>N/A</strong>.
+                      </p>
+                    </Field>
                   </Section>
 
                   <Actions
@@ -1560,7 +1583,7 @@ function ProfileSettings({ user, onUserUpdate }) {
                 </motion.div>
               )}
 
-                            {activeTab === "myid" && (
+              {activeTab === "myid" && (
                 <motion.div
                   key="myid"
                   initial={{ opacity: 0, y: 8 }}
@@ -1572,13 +1595,12 @@ function ProfileSettings({ user, onUserUpdate }) {
                     title="Member Identification Card"
                     description="Your official ZUCA membership card. Keep your membership number confidential."
                     icon={<FiCreditCard color="black" size={16} />}
-                    
                   >
                     <div style={idStyles.cardWrap}>
-                     <div style={idStyles.card}>
-  <div style={idStyles.cardDeco1} aria-hidden="true" />
-  <div style={idStyles.cardDeco2} aria-hidden="true" />
-  <div style={idStyles.cardGrid} aria-hidden="true" />
+                      <div style={idStyles.card}>
+                        <div style={idStyles.cardDeco1} aria-hidden="true" />
+                        <div style={idStyles.cardDeco2} aria-hidden="true" />
+                        <div style={idStyles.cardGrid} aria-hidden="true" />
 
                         <div style={idStyles.cardTop}>
                           <span style={idStyles.cardBrand}>ZUCA</span>
@@ -1587,20 +1609,20 @@ function ProfileSettings({ user, onUserUpdate }) {
 
                         <div style={idStyles.cardPerson}>
                           <div style={idStyles.cardAvatar}>
-  {profileImage ? (
-    <img
-      src={profileImage}
-      alt={user?.fullName}
-      style={idStyles.cardAvatarImg}
-    />
-  ) : (
-    <img
-      src={zucaLogo}
-      alt="ZUCA"
-      style={idStyles.cardAvatarLogo}
-    />
-  )}
-</div>
+                            {profileImage ? (
+                              <img
+                                src={profileImage}
+                                alt={user?.fullName}
+                                style={idStyles.cardAvatarImg}
+                              />
+                            ) : (
+                              <img
+                                src={zucaLogo}
+                                alt="ZUCA"
+                                style={idStyles.cardAvatarLogo}
+                              />
+                            )}
+                          </div>
 
                           <div style={idStyles.cardPersonInfo}>
                             <p style={idStyles.cardCaption}>Registered Member</p>
@@ -1627,6 +1649,12 @@ function ProfileSettings({ user, onUserUpdate }) {
                             </p>
                           </div>
                           <div style={idStyles.cardField}>
+                            <p style={idStyles.cardFieldLabel}>Reg. No</p>
+                            <p style={idStyles.cardFieldValue}>
+                              {user?.admissionNumber || "Not provided"}
+                            </p>
+                          </div>
+                          <div style={idStyles.cardField}>
                             <p style={idStyles.cardFieldLabel}>Role</p>
                             <p style={idStyles.cardFieldValue}>
                               {user?.role || "Member"}
@@ -1650,10 +1678,10 @@ function ProfileSettings({ user, onUserUpdate }) {
                             </p>
                           </div>
                           <img
-  src={zucaLogo}
-  alt=""
-  style={idStyles.cardWatermark}
-/>
+                            src={zucaLogo}
+                            alt=""
+                            style={idStyles.cardWatermark}
+                          />
                         </div>
                       </div>
 
@@ -1669,7 +1697,7 @@ function ProfileSettings({ user, onUserUpdate }) {
                         <button
                           type="button"
                           onClick={() => {
-                            const text = `ZUCA MEMBER ID\n${user?.fullName}\nMembership: ${user?.membership_number}\nEmail: ${user?.email}\nPhone: ${user?.phone || "—"}\nRole: ${user?.role}\nJumuia: ${user?.homeJumuia?.name || "Not assigned"}`;
+                            const text = `ZUCA MEMBER ID\n${user?.fullName}\nMembership: ${user?.membership_number || "—"}\nReg. No: ${user?.admissionNumber || "Not provided"}\nEmail: ${user?.email || "—"}\nPhone: ${user?.phone || "—"}\nRole: ${user?.role || "Member"}\nJumuia: ${user?.homeJumuia?.name || "Not assigned"}`;
                             navigator.clipboard?.writeText(text);
                             setSuccess("ID details copied to clipboard.");
                             setTimeout(() => setSuccess(""), 2000);
@@ -1690,7 +1718,6 @@ function ProfileSettings({ user, onUserUpdate }) {
                   </Section>
                 </motion.div>
               )}
-
 
               {activeTab === "security" && (
                 <motion.div
@@ -2101,6 +2128,13 @@ function ProfileSettings({ user, onUserUpdate }) {
           />
         )}
       </AnimatePresence>
+
+      {/* Page-level responsive tweaks */}
+      <style>{`
+        @media (max-width: 720px) {
+          .ps-hero-content-pad { padding: 40px 18px 0 !important; }
+        }
+      `}</style>
     </div>
   );
 }
@@ -2239,12 +2273,12 @@ const s = {
     position: "absolute",
     top: 20,
     left: 24,
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 20,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "rgba(255,255,255,0.15)",
+    background: "rgba(255, 255, 255, 0)",
     border: "1px solid rgba(255,255,255,0.25)",
     borderRadius: 12,
     color: "white",
@@ -2264,6 +2298,7 @@ const s = {
     zIndex: 3,
     flexWrap: "wrap",
     justifyContent: "flex-end",
+    maxWidth: "calc(100% - 100px)",
   },
 
   heroControlBtn: {
@@ -2271,16 +2306,17 @@ const s = {
     alignItems: "center",
     gap: 6,
     padding: "8px 14px",
-    background: "rgba(255,255,255,0.15)",
-    border: "1px solid rgba(255,255,255,0.3)",
+    background: "rgba(255, 255, 255, 0)",
+    border: "1px solid rgba(255, 255, 255, 0)",
     color: "white",
     borderRadius: 10,
     fontSize: 12,
     fontWeight: 600,
     cursor: "pointer",
-    backdropFilter: "blur(10px)",
+    backdropFilter: "blur(0px)",
     WebkitBackdropFilter: "blur(10px)",
     transition: "all 0.15s ease",
+    flexShrink: 0,
   },
 
   heroControlSpinner: {
@@ -2293,14 +2329,14 @@ const s = {
   },
 
   themePicker: {
-    position: "auto",
+    position: "absolute",
     top: 72,
     right: 24,
     background: "#ffffff",
     borderRadius: 16,
     border: "1px solid #e2e8f0",
     padding: 16,
-    width: 360,
+    width: "min(360px, calc(100% - 32px))",
     zIndex: 5,
     boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.35)",
   },
@@ -2331,7 +2367,7 @@ const s = {
 
   themeGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(6, 1fr)",
+    gridTemplateColumns: "repeat(auto-fill, minmax(38px, 1fr))",
     gap: 8,
   },
 
@@ -2367,17 +2403,16 @@ const s = {
     zIndex: 1,
     maxWidth: 1100,
     margin: "0 auto",
-    padding: "60px 32px 0",
+    padding: "40px 24px 0",
     display: "flex",
     alignItems: "flex-end",
-    gap: 24,
+    gap: 20,
     flexWrap: "wrap",
   },
 
   heroAvatarWrap: {
     position: "relative",
     flexShrink: 0,
-    marginTop: 20,
   },
 
   heroAvatar: {
@@ -2425,7 +2460,7 @@ const s = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    border: "2px solid #e2e8f0",
+    border: "2px solid #e2e8f000",
     boxShadow: "0 6px 14px -4px rgba(15, 23, 42, 0.3)",
   },
 
@@ -2439,26 +2474,31 @@ const s = {
   },
 
   heroIdentity: {
-    flex: 1,
+    flex: "1 1 260px",
     minWidth: 0,
-    paddingBottom: 4,
     color: "white",
   },
 
   heroName: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 800,
     margin: 0,
     letterSpacing: "-0.02em",
-    lineHeight: 1.15,
+    lineHeight: 1.2,
     textShadow: "0 2px 8px rgba(0,0,0,0.15)",
+    whiteSpace: "normal",
+    overflowWrap: "break-word",
+    wordBreak: "normal",
+    hyphens: "none",
   },
 
   heroEmail: {
     fontSize: 14,
-    margin: "6px 0 12px",
+    margin: "6px 0 10px",
     color: "rgba(255,255,255,0.85)",
+    overflowWrap: "anywhere",
     wordBreak: "break-all",
+    lineHeight: 1.4,
   },
 
   heroMeta: {
@@ -2468,8 +2508,8 @@ const s = {
   },
 
   roleBadge: {
-    background: "rgba(255,255,255,0.2)",
-    border: "1px solid rgba(255,255,255,0.3)",
+    background: "rgba(255, 255, 255, 0)",
+    border: "1px solid rgba(255, 255, 255, 0.01)",
     color: "white",
     fontSize: 11,
     fontWeight: 800,
@@ -2485,13 +2525,16 @@ const s = {
     display: "inline-flex",
     alignItems: "center",
     gap: 4,
-    background: "rgba(255,255,255,0.12)",
-    border: "1px solid rgba(255,255,255,0.2)",
+    background: "rgba(255, 255, 255, 0)",
+    border: "1px solid rgba(255, 255, 255, 0.01)",
     color: "white",
-    fontSize: 11.5,
+    fontSize: 11.5,     
     fontWeight: 600,
     padding: "4px 10px",
     borderRadius: 999,
+    maxWidth: "100%",
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
   },
 
   heroRemoveBtn: {
@@ -2499,7 +2542,7 @@ const s = {
     alignItems: "center",
     gap: 6,
     padding: "8px 14px",
-    background: "rgba(255,255,255,0.15)",
+    background: "rgba(255, 255, 255, 0)",
     border: "1px solid rgba(255,255,255,0.3)",
     color: "white",
     borderRadius: 10,
@@ -2509,14 +2552,14 @@ const s = {
     backdropFilter: "blur(6px)",
     WebkitBackdropFilter: "blur(6px)",
     alignSelf: "flex-end",
-    marginBottom: 4,
     transition: "all 0.15s ease",
+    flexShrink: 0,
   },
 
   tabsWrap: {
     maxWidth: 1100,
     margin: "-28px auto 0",
-    padding: "0 32px",
+    padding: "0 24px",
     position: "relative",
     zIndex: 2,
   },
@@ -2530,6 +2573,8 @@ const s = {
     padding: 6,
     boxShadow: "0 10px 30px -12px rgba(15, 23, 42, 0.15)",
     overflowX: "auto",
+    scrollbarWidth: "thin",
+    WebkitOverflowScrolling: "touch",
   },
 
   tab: {
@@ -2546,6 +2591,7 @@ const s = {
     cursor: "pointer",
     whiteSpace: "nowrap",
     transition: "all 0.15s ease",
+    flexShrink: 0,
   },
 
   tabActive: {
@@ -2562,9 +2608,10 @@ const s = {
     cursor: "pointer",
     whiteSpace: "nowrap",
     boxShadow: "0 6px 14px -6px rgba(15, 23, 42, 0.4)",
+    flexShrink: 0,
   },
 
-  body: { padding: "24px 32px 0" },
+  body: { padding: "24px 24px 0" },
 
   content: {
     maxWidth: 1100,
@@ -2596,6 +2643,7 @@ const s = {
     marginBottom: 20,
     paddingBottom: 16,
     borderBottom: "1px solid #f1f5f9",
+    flexWrap: "wrap",
   },
 
   sectionIconWrap: {
@@ -2608,7 +2656,7 @@ const s = {
     flexShrink: 0,
   },
 
-  sectionHeaderText: { flex: 1, minWidth: 0 },
+  sectionHeaderText: { flex: "1 1 200px", minWidth: 0 },
 
   sectionTitle: {
     fontSize: 15,
@@ -2616,13 +2664,15 @@ const s = {
     color: "#0f172a",
     margin: 0,
     letterSpacing: "-0.01em",
+    overflowWrap: "break-word",
   },
 
   sectionDesc: {
     fontSize: 12.5,
     color: "#94a3b8",
     margin: "4px 0 0",
-    lineHeight: 1.4,
+    lineHeight: 1.5,
+    overflowWrap: "break-word",
   },
 
   sectionBody: {
@@ -2633,6 +2683,14 @@ const s = {
 
   field: { display: "flex", flexDirection: "column", gap: 6 },
 
+  fieldHint: {
+    fontSize: 11.5,
+    color: "#94a3b8",
+    margin: "2px 0 0",
+    lineHeight: 1.5,
+    overflowWrap: "break-word",
+  },
+
   label: {
     display: "flex",
     alignItems: "center",
@@ -2640,6 +2698,7 @@ const s = {
     fontSize: 12,
     fontWeight: 600,
     color: "#475569",
+    overflowWrap: "break-word",
   },
 
   input: {
@@ -2653,6 +2712,7 @@ const s = {
     boxSizing: "border-box",
     transition: "all 0.15s ease",
     color: "#0f172a",
+    overflowWrap: "break-word",
   },
 
   pwWrapper: { position: "relative" },
@@ -2695,6 +2755,7 @@ const s = {
     color: "#dc2626",
     fontSize: 13,
     fontWeight: 500,
+    overflowWrap: "break-word",
   },
 
   successMsg: {
@@ -2708,6 +2769,7 @@ const s = {
     color: "#059669",
     fontSize: 13,
     fontWeight: 500,
+    overflowWrap: "break-word",
   },
 
   actions: {
@@ -2715,6 +2777,7 @@ const s = {
     gap: 12,
     justifyContent: "flex-end",
     padding: "8px 0",
+    flexWrap: "wrap",
   },
 
   cancelBtn: {
@@ -2860,7 +2923,7 @@ const dz = {
     marginBottom: 14,
     fontSize: 13,
   },
-  btnRow: { display: "flex", gap: 10, marginTop: 14 },
+  btnRow: { display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" },
   cancelBtn: {
     padding: "8px 16px",
     background: "#f1f5f9",
@@ -2903,6 +2966,7 @@ const dz = {
     fontFamily: "monospace",
     fontWeight: 700,
     color: "#dc2626",
+    overflowWrap: "anywhere",
   },
   confirmInput: {
     width: "100%",
@@ -2928,42 +2992,43 @@ const idStyles = {
     alignItems: "center",
   },
 
- card: {
-  position: "relative",
-  width: "100%",
-  maxWidth: 520,
-  borderRadius: 16,
-  padding: "18px 20px 16px",
-  background: "linear-gradient(135deg, #19385f 0%, #102847 55%, #0d203b 100%)",
-  border: "1px solid #28486f",
-  color: "#fff",
-  overflow: "hidden",
-  boxShadow: "0 14px 30px rgba(20,44,76,0.18)",
-},
+  card: {
+    position: "relative",
+    width: "100%",
+    maxWidth: 520,
+    borderRadius: 16,
+    padding: "18px 20px 16px",
+    background: "linear-gradient(135deg, #19385f 0%, #102847 55%, #0d203b 100%)",
+    border: "1px solid #28486f",
+    color: "#fff",
+    overflow: "hidden",
+    boxShadow: "0 14px 30px rgba(20,44,76,0.18)",
+    boxSizing: "border-box",
+  },
 
-cardDeco1: {
-  position: "absolute",
-  top: -80,
-  right: -60,
-  width: 180,
-  height: 180,
-  border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: "50%",
-  boxShadow:
-    "0 0 0 20px rgba(255,255,255,0.025), 0 0 0 40px rgba(255,255,255,0.02)",
-  pointerEvents: "none",
-},
+  cardDeco1: {
+    position: "absolute",
+    top: -80,
+    right: -60,
+    width: 180,
+    height: 180,
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "50%",
+    boxShadow:
+      "0 0 0 20px rgba(255,255,255,0.025), 0 0 0 40px rgba(255,255,255,0.02)",
+    pointerEvents: "none",
+  },
 
-cardDeco2: {
-  position: "absolute",
-  right: -40,
-  bottom: -80,
-  width: 160,
-  height: 160,
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "50%",
-  pointerEvents: "none",
-},
+  cardDeco2: {
+    position: "absolute",
+    right: -40,
+    bottom: -80,
+    width: 160,
+    height: 160,
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "50%",
+    pointerEvents: "none",
+  },
 
   cardGrid: {
     position: "absolute",
@@ -2983,6 +3048,8 @@ cardDeco2: {
     marginBottom: 16,
     paddingBottom: 14,
     borderBottom: "1px solid rgba(255,255,255,0.14)",
+    flexWrap: "wrap",
+    gap: 8,
   },
 
   cardBrand: {
@@ -3000,6 +3067,7 @@ cardDeco2: {
     padding: "4px 8px",
     border: "1px solid rgba(255,255,255,0.18)",
     borderRadius: 999,
+    whiteSpace: "nowrap",
   },
 
   cardPerson: {
@@ -3008,6 +3076,7 @@ cardDeco2: {
     alignItems: "center",
     gap: 14,
     paddingBottom: 16,
+    flexWrap: "wrap",
   },
 
   cardAvatar: {
@@ -3037,7 +3106,7 @@ cardDeco2: {
 
   cardPersonInfo: {
     minWidth: 0,
-    flex: 1,
+    flex: "1 1 180px",
   },
 
   cardCaption: {
@@ -3055,7 +3124,11 @@ cardDeco2: {
     fontWeight: 800,
     color: "#fff",
     lineHeight: 1.3,
-    overflowWrap: "anywhere",
+    whiteSpace: "normal",
+    overflowWrap: "break-word",
+    wordBreak: "normal",
+    hyphens: "none",
+    maxWidth: "100%",
   },
 
   cardNumber: {
@@ -3066,21 +3139,30 @@ cardDeco2: {
       "'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace",
     color: "#d6e3f4",
     letterSpacing: "0.06em",
+    whiteSpace: "normal",
+    overflowWrap: "break-word",
+    wordBreak: "normal",
+    maxWidth: "100%",
   },
 
   cardGrid2: {
     position: "relative",
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "10px 18px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+    gap: "12px 18px",
     paddingTop: 12,
     borderTop: "1px solid rgba(255,255,255,0.14)",
   },
 
-  cardField: { minWidth: 0 },
+  cardField: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+  },
 
   cardFieldLabel: {
-    margin: "0 0 3px",
+    margin: 0,
     fontSize: 8,
     fontWeight: 700,
     letterSpacing: "0.1em",
@@ -3093,7 +3175,12 @@ cardDeco2: {
     fontSize: 11.5,
     fontWeight: 700,
     color: "#fff",
-    overflowWrap: "anywhere",
+    lineHeight: 1.35,
+    whiteSpace: "normal",
+    overflowWrap: "break-word",
+    wordBreak: "normal",
+    hyphens: "none",
+    maxWidth: "100%",
   },
 
   cardFooter: {
@@ -3174,8 +3261,8 @@ cardDeco2: {
     textAlign: "center",
     lineHeight: 1.5,
     maxWidth: 420,
+    overflowWrap: "break-word",
   },
 };
-
 
 export default ProfileSettings;

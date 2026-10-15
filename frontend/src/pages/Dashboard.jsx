@@ -552,6 +552,8 @@ export default function Dashboard() {
 
   const [myAttendance, setMyAttendance] = useState(null);
   const [attRange, setAttRange] = useState("monthly");
+  const [admissionNumber, setAdmissionNumber] = useState("");
+
 
   const [adIdx, setAdIdx] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -615,9 +617,17 @@ export default function Dashboard() {
         .catch((e) => console.error("me", e.message))
         .finally(() => setReady((p) => ({ ...p, jumuia: true }))),
 
-      g("myAttendance", "/api/attendance/member/all-meetings?semesterId=current", (d) => setMyAttendance(d)),
-    ]);
-    setRefreshing(false);
+     g("myAttendance", "/api/attendance/member/all-meetings?semesterId=current", (d) => setMyAttendance(d)),
+
+g("mySemester", "/api/my-semester", (d) => {
+  const num =
+    d?.membership?.admissionNumber ||
+    d?.user?.admissionNumber ||
+    "";
+  setAdmissionNumber(num);
+}),
+]);
+setRefreshing(false);
   }, []);
 
   useEffect(() => {
@@ -838,11 +848,24 @@ const nextEventText = nextEvent
               <h2>{user.fullName}</h2>
               <p>{user.email}</p>
               <div className="zd-chips">
-                <span>Acc.Type: - {user.role || "Member"}</span>
-                <span>M.NO:- {user.membership_number || "Z#TEMP"}</span>
-                <span>Phone:- {user.phone && <FiPhone size={11} />}{user.phone}</span>
-                <span>Jumuia:- {user.homeJumuia?.name || "Not specified"}</span>
-              </div>
+  <span>Acc.Type: - {user.role || "Member"}</span>
+  <span>M.NO:- {user.membership_number || "Z#TEMP"}</span>
+  <span>
+    Reg.No:-{" "}
+    {admissionNumber ||
+      user.admissionNumber ||
+      (() => {
+        try {
+          return JSON.parse(localStorage.getItem("user") || "{}").admissionNumber;
+        } catch {
+          return "";
+        }
+      })() ||
+      "Not provided"}
+  </span>
+  <span>Phone:- {user.phone && <FiPhone size={11} />}{user.phone}</span>
+  <span>Jumuia:- {user.homeJumuia?.name || "Not specified"}</span>
+</div>
             </div>
             <button
               className="zd-pgo"
@@ -1447,11 +1470,11 @@ const nextEventText = nextEvent
       {pendingCover && <CoverCropper imageFile={pendingCover} onCropComplete={saveCover} onClose={() => setPendingCover(null)} />}
       {scanner && <QRScanner onClose={() => setScanner(false)} onSuccess={() => { setScanner(false); load(); }} />}
       <ProfileSettings
-        isOpen={settings}
-        onClose={() => setSettings(false)}
-        user={user}
-        onUserUpdate={(u) => setUser(saveUser(u))}
-      />
+  isOpen={settings}
+  onClose={() => setSettings(false)}
+  user={{ ...user, admissionNumber }}
+  onUserUpdate={(u) => setUser(saveUser(u))}
+/>
 
       <style>{`
 .zd{--ink:#0f172a;--mut:#64748b;--ln:#e2e8f0;--bg:#f8fafc;--red:#dc2626;

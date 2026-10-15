@@ -908,89 +908,139 @@ export default function AdminSemesterPage() {
               </section>
             )}
 
-            {selected && activeSection === "sheet" && (
-              <section className="adm-panel">
-                <div className="adm-panel-head">
-                  <div>
-                    <h3><FiLink size={14} /> Google Sheet roster</h3>
-                    <p className="adm-panel-sub">
-                      Link a Google Sheet. The roster updates there automatically, and you can push it any time.
-                    </p>
-                  </div>
-                  {sheetSaving && <span className="adm-loading-dot" />}
-                </div>
+{selected && activeSection === "sheet" && (
+  <section className="adm-panel">
+    <div className="adm-panel-head">
+      <div>
+        <h3><FiLink size={14} /> Google Sheet roster</h3>
+        <p className="adm-panel-sub">
+          Link a Google Sheet for this semester. The roster updates there automatically.
+        </p>
+      </div>
+      {sheetSaving && <span className="adm-loading-dot" />}
+    </div>
 
-                <div className="adm-sheet-section">
-                  <div className="adm-sheet-label">Sheet link</div>
-                  <p className="adm-sheet-hint">
-                    Paste the link from the school. The system will fill this semester's
-                    block on every registration.
-                  </p>
-                  <div className="adm-sheet-input-row">
-                    <input
-                      type="text"
-                      className="adm-sheet-input"
-                      value={rosterSheetUrl}
-                      onChange={(e) => setRosterSheetUrl(e.target.value)}
-                      placeholder="https://docs.google.com/spreadsheets/d/..."
-                    />
-                  </div>
+    <div className="adm-sheet-section">
+      <div className="adm-sheet-step">
+        <span className="adm-sheet-step-num">1</span>
+        <div className="adm-sheet-step-body">
+          <div className="adm-sheet-label">Share the sheet with the ZUCA bot</div>
+          <p className="adm-sheet-hint">
+            On the google sheet Click <strong>Share</strong>,
+            and in the place written <strong>"Add people, groups,spaces, and calender events"</strong>add the email below as <strong>Editor</strong> click send make sure <strong>Notify people </strong>option is off. The system cannot write to
+            a sheet that hasn't been shared with this address.
+          </p>
+          <div className="adm-sheet-input-row">
+            <input
+              type="text"
+              className="adm-sheet-input adm-sheet-copy-field"
+              readOnly
+              value="zuca-portal-sync@zetech-catholic.iam.gserviceaccount.com"
+              onFocus={(e) => e.target.select()}
+            />
+            <button
+              type="button"
+              className="adm-btn adm-btn-ghost"
+              onClick={() => {
+                navigator.clipboard.writeText(
+                  "zuca-portal-sync@zetech-catholic.iam.gserviceaccount.com"
+                );
+                setSuccess("Bot email copied. Paste it into the sheet's Share dialog and set it to Editor.");
+              }}
+            >
+              <FiCopy size={13} /> Copy email
+            </button>
+          </div>
+          <p className="adm-sheet-hint" style={{ marginTop: 10 }}>
+            Skip this step only if the sheet was already shared with the bot.
+          </p>
+        </div>
+      </div>
+    </div>
 
-                  {selected?.rosterSheetId && (
-                    <div className="adm-sheet-actions" style={{ marginTop: 10 }}>
-                      <a
-                        className="adm-btn adm-btn-ghost"
-                        href={`https://docs.google.com/spreadsheets/d/${selected.rosterSheetId}/edit`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <FiExternalLink size={13} /> Open sheet
-                      </a>
-                    </div>
-                  )}
-                </div>
+    <div className="adm-sheet-section">
+      <div className="adm-sheet-step">
+        <span className="adm-sheet-step-num">2</span>
+        <div className="adm-sheet-step-body">
+          <div className="adm-sheet-label">Paste the Google Sheet link</div>
+          <p className="adm-sheet-hint">
+            Copy the full URL from the browser address bar or the link for the google sheet and paste it here.
+          </p>
+          <div className="adm-sheet-input-row">
+            <input
+              type="text"
+              className="adm-sheet-input"
+              value={rosterSheetUrl}
+              onChange={(e) => setRosterSheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+            />
+          </div>
 
-                <div className="adm-sheet-section">
-                  <div className="adm-sheet-label">Auto-update</div>
-                  <div className="adm-toggle-list">
-                    <ToggleRow
-                      label="Update sheet when a member registers"
-                      checked={sheetAutoPushOnRegister}
-                      onChange={setSheetAutoPushOnRegister}
-                      disabled={!selected?.rosterSheetId || sheetSaving}
-                    />
-                    <ToggleRow
-                      label="Update sheet when registration closes"
-                      checked={sheetAutoPushOnClose}
-                      onChange={setSheetAutoPushOnClose}
-                      disabled={!selected?.rosterSheetId || sheetSaving}
-                    />
-                  </div>
-                </div>
+          {selected?.rosterSheetId && (
+            <div className="adm-sheet-actions" style={{ marginTop: 10 }}>
+              <a
+                className="adm-btn adm-btn-ghost"
+                href={`https://docs.google.com/spreadsheets/d/${selected.rosterSheetId}/edit`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <FiExternalLink size={13} /> Open current sheet
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
 
-                <div className="adm-btn-row">
-                  <button
-                    className="adm-btn adm-btn-primary"
-                    onClick={saveRosterSheet}
-                    disabled={sheetSaving}
-                  >
-                    <FiCheck size={13} />
-                    {sheetSaving ? "Saving…" : "Save settings"}
-                  </button>
+    <div className="adm-sheet-section">
+      <div className="adm-sheet-step">
+        <span className="adm-sheet-step-num">3</span>
+        <div className="adm-sheet-step-body">
+          <div className="adm-sheet-label">Choose when the sheet updates</div>
+          <p className="adm-sheet-hint">
+            The sheet is rewritten every time the roster changes.
+          </p>
+          <div className="adm-toggle-list">
+            <ToggleRow
+              label="Update sheet when a member registers"
+              checked={sheetAutoPushOnRegister}
+              onChange={setSheetAutoPushOnRegister}
+              disabled={!selected?.rosterSheetId || sheetSaving}
+            />
+            <ToggleRow
+              label="Update sheet when registration closes"
+              checked={sheetAutoPushOnClose}
+              onChange={setSheetAutoPushOnClose}
+              disabled={!selected?.rosterSheetId || sheetSaving}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
 
-                  {selected?.rosterSheetId && (
-                    <button
-                      className="adm-btn adm-btn-ghost"
-                      onClick={pushToSheetNow}
-                      disabled={sheetPushing}
-                    >
-                      <FiDownload size={13} />
-                      {sheetPushing ? "Pushing…" : "Push all now"}
-                    </button>
-                  )}
-                </div>
-              </section>
-            )}
+    <div className="adm-btn-row">
+      <button
+        className="adm-btn adm-btn-primary"
+        onClick={saveRosterSheet}
+        disabled={sheetSaving}
+      >
+        <FiCheck size={13} />
+        {sheetSaving ? "Saving…" : "Save settings"}
+      </button>
+
+      {selected?.rosterSheetId && (
+        <button
+          className="adm-btn adm-btn-ghost"
+          onClick={pushToSheetNow}
+          disabled={sheetPushing}
+        >
+          <FiDownload size={13} />
+          {sheetPushing ? "Pushing…" : "Push roster now"}
+        </button>
+      )}
+    </div>
+  </section>
+)}
 
             {selected && activeSection === "controls" && (
               <section className="adm-panel">
@@ -1399,6 +1449,34 @@ const css = `
     border-color: #0f0f0f;
     box-shadow: 0 0 0 3px rgba(15,15,15,.06);
   }
+
+  .adm-sheet-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.adm-sheet-step-num {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #0f0f0f;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 1px;
+}
+.adm-sheet-step-body { flex: 1; min-width: 0; }
+.adm-sheet-copy-field {
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+}
   .adm-sheet-actions {
     display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
   }

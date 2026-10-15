@@ -165,6 +165,28 @@ export default function AdminSemesterPage() {
   useEffect(() => { loadRoster(selectedId); /* eslint-disable-next-line */ }, [selectedId]);
 
   useEffect(() => {
+    if (!selectedId) return;
+    const id = setInterval(() => {
+      loadRoster(selectedId);
+      loadSemesters(true);
+    }, 15000);
+    return () => clearInterval(id);
+    /* eslint-disable-next-line */
+  }, [selectedId]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (selectedId) {
+        loadRoster(selectedId);
+        loadSemesters(true);
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+    /* eslint-disable-next-line */
+  }, [selectedId]);
+
+  useEffect(() => {
     const s = semesters.find((x) => x.id === selectedId);
     if (s?.rosterSheetId) {
       setRosterSheetUrl(
@@ -430,6 +452,7 @@ export default function AdminSemesterPage() {
         `${BASE_URL}/api/semesters/${selectedId}/members/${userId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      await new Promise((r) => setTimeout(r, 500));
       await loadRoster(selectedId);
       await loadSemesters(true);
     } catch (err) {
@@ -526,6 +549,7 @@ export default function AdminSemesterPage() {
       setSuccess(res.data.message || "Member registered.");
       resetAddPanel();
       setShowAddPanel(false);
+      await new Promise((r) => setTimeout(r, 500));
       await loadRoster(selectedId);
       await loadSemesters(true);
     } catch (err) {

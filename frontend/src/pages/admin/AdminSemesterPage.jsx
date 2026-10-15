@@ -64,7 +64,7 @@ export default function AdminSemesterPage() {
   const registrationPath = "/semester-registration";
   const registrationUrl = `${window.location.origin}${registrationPath}`;
   const shareMessage = selected
-    ? `Register for ${selected.title} on the ZUCA Portal: ${registrationUrl}`
+    ? `Club Registration for ${selected.title} on the ZUCA Portal: ${registrationUrl}`
     : `Register on the ZUCA Portal: ${registrationUrl}`;
 
   const handleCopyLink = async () => {
@@ -100,20 +100,42 @@ export default function AdminSemesterPage() {
     }
   };
 
-  const loadSemesters = async () => {
+  const loadSemesters = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await axios.get(`${BASE_URL}/api/semesters`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setSemesters(res.data.semesters || []);
-      if (!selectedId && res.data.semesters?.length) {
-        setSelectedId(res.data.semesters[0].id);
-      }
+      const list = res.data.semesters || [];
+
+      setSemesters((prev) => {
+        return list.map((s) => {
+          const old = prev.find((p) => p.id === s.id);
+          if (
+            old &&
+            old.memberCount === s.memberCount &&
+            old.registrationOpen === s.registrationOpen &&
+            old.rosterSheetId === s.rosterSheetId &&
+            old.sheetAutoPushOnRegister === s.sheetAutoPushOnRegister &&
+            old.sheetAutoPushOnClose === s.sheetAutoPushOnClose &&
+            old.notifyOnOpen === s.notifyOnOpen &&
+            old.notifyOnOpenEmail === s.notifyOnOpenEmail &&
+            old.notifyOnRegister === s.notifyOnRegister &&
+            old.notifyOnRegisterEmail === s.notifyOnRegisterEmail
+          ) {
+            return old;
+          }
+          return s;
+        });
+      });
+
+      setSelectedId((prev) => prev || (list[0]?.id ?? ""));
     } catch (err) {
-      setError(err.response?.data?.error || "Could not load semesters.");
+      if (!silent) {
+        setError(err.response?.data?.error || "Could not load semesters.");
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -143,17 +165,18 @@ export default function AdminSemesterPage() {
   useEffect(() => { loadRoster(selectedId); /* eslint-disable-next-line */ }, [selectedId]);
 
   useEffect(() => {
-    if (selected?.rosterSheetId) {
+    const s = semesters.find((x) => x.id === selectedId);
+    if (s?.rosterSheetId) {
       setRosterSheetUrl(
-        `https://docs.google.com/spreadsheets/d/${selected.rosterSheetId}/edit`
+        `https://docs.google.com/spreadsheets/d/${s.rosterSheetId}/edit`
       );
     } else {
       setRosterSheetUrl("");
     }
-    setSheetAutoPushOnRegister(selected?.sheetAutoPushOnRegister !== false);
-    setSheetAutoPushOnClose(selected?.sheetAutoPushOnClose !== false);
+    setSheetAutoPushOnRegister(s?.sheetAutoPushOnRegister !== false);
+    setSheetAutoPushOnClose(s?.sheetAutoPushOnClose !== false);
     /* eslint-disable-next-line */
-  }, [selectedId, semesters]);
+  }, [selectedId]);
 
   const loadWhatsAppData = async () => {
     setWhatsappLoading(true);
@@ -252,7 +275,7 @@ export default function AdminSemesterPage() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSuccess(res.data.message || "Registration opened.");
-      await loadSemesters();
+      await loadSemesters(true);
     } catch (err) {
       setError(err.response?.data?.error || "Could not open registration.");
     } finally {
@@ -272,7 +295,7 @@ export default function AdminSemesterPage() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSuccess(res.data.message || "Registration closed.");
-      await loadSemesters();
+      await loadSemesters(true);
     } catch (err) {
       setError(err.response?.data?.error || "Could not close registration.");
     } finally {
@@ -373,7 +396,7 @@ export default function AdminSemesterPage() {
           ? "Google Sheet settings saved."
           : "Google Sheet unlinked."
       );
-      await loadSemesters();
+      await loadSemesters(true);
     } catch (err) {
       setError(err.response?.data?.error || "Could not save sheet settings.");
     } finally {
@@ -408,7 +431,7 @@ export default function AdminSemesterPage() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       await loadRoster(selectedId);
-      await loadSemesters();
+      await loadSemesters(true);
     } catch (err) {
       setError(err.response?.data?.error || "Could not remove member.");
     }
@@ -504,7 +527,7 @@ export default function AdminSemesterPage() {
       resetAddPanel();
       setShowAddPanel(false);
       await loadRoster(selectedId);
-      await loadSemesters();
+      await loadSemesters(true);
     } catch (err) {
       setError(err.response?.data?.error || "Could not register user.");
     } finally {
@@ -548,7 +571,7 @@ export default function AdminSemesterPage() {
             <button className="adm-btn" onClick={() => navigate(-1)}>
               <FiArrowLeft size={14} /> Back
             </button>
-            <button className="adm-btn" onClick={loadSemesters}>
+            <button className="adm-btn" onClick={() => loadSemesters()}>
               <FiRefreshCw size={14} /> Refresh
             </button>
           </div>

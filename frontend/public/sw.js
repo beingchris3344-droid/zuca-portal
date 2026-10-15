@@ -1,25 +1,27 @@
 // ================== ZUCA SERVICE WORKER ==================
-const CACHE_NAME = 'zuca-v5';
+const CACHE_NAME = 'zuca-v6';
 const SYNC_TAG = 'sync-checkins';
 
 // URLs to cache on install
 const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.webmanifest'
+  '/site.webmanifest'
 ];
 
 // ================== INSTALL ==================
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing...');
-  
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching app shell');
-      return cache.addAll(urlsToCache);
+      // Combine hardcoded URLs with the injected build manifest
+      const allUrls = [
+        ...urlsToCache,
+        ...self.__WB_MANIFEST.map((e) => e.url),
+      ];
+      return cache.addAll(allUrls);
     })
   );
-  
   self.skipWaiting();
 });
 

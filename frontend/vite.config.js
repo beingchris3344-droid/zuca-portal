@@ -13,7 +13,7 @@ export default defineConfig({
       srcDir: 'public',
       filename: 'sw.js',
       injectManifest: {
-        injectionPoint: undefined,
+         injectionPoint: 'self.__WB_MANIFEST', 
       },
       devOptions: {
         enabled: false,

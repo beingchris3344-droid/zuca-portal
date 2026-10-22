@@ -17,6 +17,7 @@ import {
   FaBirthdayCake,
   FaExclamationTriangle,
   FaRegistered,
+  FaChartLine,
 } from "react-icons/fa";
 import logoImg from "../../assets/zuca-logo.png";
 import BASE_URL from "../../api";
@@ -282,6 +283,7 @@ export default function AdminLayout() {
     {
       label: "Finance",
       items: [
+        { label: "Treasury Report", path: "/treasurer/reports", icon: <FaChartLine/>},
         { label: "Contributions", path: "contributions", icon: <FaHandHoldingHeart /> },
         { label: "Bank Payments", path: "bank-payments", icon: <FaUniversity /> },
       ],

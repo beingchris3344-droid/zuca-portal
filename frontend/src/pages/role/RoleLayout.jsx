@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";          
 import BASE_URL from "../../api"; 
-import { FaBook, FaCalculator, FaDashcube, FaHandsHelping, FaPlus, FaRegFilePowerpoint, FaUniversity,FaWhatsapp, FaCalendarAlt, FaClipboard, FaCheckCircle, FaHistory,FaCalendarPlus,FaMusic, FaBullhorn, FaImage, FaHandHoldingHeart, FaUserAlt, FaUser } from "react-icons/fa";
+import { FaBook, FaCalculator, FaDashcube, FaHandsHelping, FaPlus, FaRegFilePowerpoint, FaUniversity,FaWhatsapp, FaCalendarAlt, FaClipboard, FaCheckCircle, FaHistory,FaCalendarPlus,FaMusic, FaBullhorn, FaImage, FaHandHoldingHeart, FaUserAlt, FaUser, FaUserFriends, FaChartBar } from "react-icons/fa";
 
 
 export default function RoleLayout() {

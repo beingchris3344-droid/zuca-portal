@@ -719,7 +719,7 @@ useEffect(() => {
         <Route
           path="/treasurer"
           element={
-            <RoleRoute allowedRoles={["treasurer"]}>
+            <RoleRoute allowedRoles={["treasurer", "admin"]}>
               <RoleLayout />
             </RoleRoute>
           }

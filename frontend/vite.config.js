@@ -14,7 +14,7 @@ export default defineConfig({
       filename: 'sw.js',
       injectManifest: {
         injectionPoint: 'self.__WB_MANIFEST',
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB safety net
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB — current bundle is ~7.53 MiB
       },
       devOptions: { enabled: false },
       manifest: {

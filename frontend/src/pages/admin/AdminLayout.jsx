@@ -283,7 +283,7 @@ export default function AdminLayout() {
     {
       label: "Finance",
       items: [
-        { label: "Treasury Report", path: "/treasurer/reports", icon: <FaChartLine/>},
+        { label: "Treasury Report ", path: "/treasurer/reports", icon: <FaChartLine/>},
         { label: "Contributions", path: "contributions", icon: <FaHandHoldingHeart /> },
         { label: "Bank Payments", path: "bank-payments", icon: <FaUniversity /> },
       ],

@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { 
   FiSearch, 
   FiHeart, 
@@ -50,7 +50,7 @@ export default function HymnBook() {
   const debounceTimer = useRef(null);
 
   const token = localStorage.getItem("token");
-
+  const navigate = useNavigate();
   // Handle resize
   useEffect(() => {
     const handleResize = () => {
@@ -171,24 +171,43 @@ export default function HymnBook() {
     };
   }, [searchInput, fetchSuggestions]);
 
-  const selectSuggestion = (suggestion) => {
-    setSearchInput(suggestion.title);
+    const selectSuggestion = (suggestion) => {
     setShowSuggestions(false);
     setSuggestions([]);
-    setActiveSearch(suggestion.title);
-    setPage(1);
-    fetchSongs(1, suggestion.title, true, false);
+    setSearchInput("");
+    navigate(`/hymn/${encodeURIComponent(suggestion.title)}`);
   };
 
-  // ONE TIME initial load - handles both normal and search from programs
+   // ONE TIME initial load - restore from cache OR fetch fresh
   useEffect(() => {
     if (initialLoadDone.current) return;
     initialLoadDone.current = true;
-    
+
     const searchQuery = searchParams.get('search');
     const savedSearch = sessionStorage.getItem('hymnSearch');
     const initialSearch = searchQuery || savedSearch || '';
-    
+
+    // 1) Try restoring cached list first (returning from a hymn page)
+    const cached = sessionStorage.getItem('hymnBookCache');
+    if (cached && !searchQuery && !savedSearch) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed.songs) && parsed.songs.length > 0) {
+          setSongs(parsed.songs);
+          setPage(parsed.page || 1);
+          setActiveSearch(parsed.activeSearch || '');
+          setSearchInput(parsed.activeSearch || '');
+          setHasMore(!!parsed.hasMore);
+          setTotalSongs(parsed.totalSongs || 0);
+          return; // skip fetch — instant paint
+        }
+      } catch (e) {
+        console.warn('hymnBookCache parse failed', e);
+        sessionStorage.removeItem('hymnBookCache');
+      }
+    }
+
+    // 2) Fresh fetch
     if (initialSearch) {
       setSearchInput(initialSearch);
       setActiveSearch(initialSearch);
@@ -199,20 +218,38 @@ export default function HymnBook() {
     }
   }, []);
 
+    // Persist list to sessionStorage so returning from a hymn page is instant
+  useEffect(() => {
+    if (!songs || songs.length === 0) return;
+    try {
+      sessionStorage.setItem('hymnBookCache', JSON.stringify({
+        songs,
+        page,
+        activeSearch,
+        hasMore,
+        totalSongs,
+      }));
+    } catch (e) {
+      // quota exceeded — ignore silently
+    }
+  }, [songs, page, activeSearch, hasMore, totalSongs]);
+
   // Handle search button click
-  const handleSearch = () => {
+    const handleSearch = () => {
     if (searchInput === activeSearch) return;
     setActiveSearch(searchInput);
     setPage(1);
+    sessionStorage.removeItem('hymnBookCache');
     fetchSongs(1, searchInput, true, false);
     setShowSuggestions(false);
   };
 
-  const clearSearch = () => {
+   const clearSearch = () => {
     setSearchInput("");
     setActiveSearch("");
     setShowFavoritesOnly(false);
     setPage(1);
+    sessionStorage.removeItem('hymnBookCache');
     fetchSongs(1, "", true, false);
     setSuggestions([]);
     setShowSuggestions(false);

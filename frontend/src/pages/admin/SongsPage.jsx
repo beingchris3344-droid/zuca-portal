@@ -21,17 +21,20 @@ import { FaFilePdf } from "react-icons/fa";
    CONSTANTS
    ============================================================ */
 const songFields = [
-  { key: "entrance", label: "Entrance Hymn", maxSongs: 3, required: true },
-  { key: "mass", label: "Mass Hymn", maxSongs: 2, required: true },
-  { key: "bible", label: "Bible Reading", maxSongs: 2, required: true },
-  { key: "offertory", label: "Offertory Hymn", maxSongs: 3, required: true },
-  { key: "procession", label: "Procession Hymn", maxSongs: 2, required: false },
-  { key: "mtakatifu", label: "Mtakatifu Hymn", maxSongs: 2, required: true },
-  { key: "signOfPeace", label: "Sign of Peace", maxSongs: 1, required: true },
-  { key: "communion", label: "Communion Hymn", maxSongs: 3, required: true },
-  { key: "thanksgiving", label: "Thanksgiving Hymn", maxSongs: 2, required: false },
-  { key: "exit", label: "Exit Hymn", maxSongs: 2, required: true },
+  { key: "entrance", label: "Entrance Hymn", required: true },
+  { key: "mass", label: "Mass Hymn", required: true },
+  { key: "bible", label: "Bible Reading", required: true },
+  { key: "offertory", label: "Offertory Hymn", required: true },
+  { key: "procession", label: "Procession Hymn", required: false },
+  { key: "mtakatifu", label: "Mtakatifu Hymn", required: true },
+  { key: "signOfPeace", label: "Sign of Peace", required: true },
+  { key: "communion", label: "Communion Hymn", required: true },
+  { key: "thanksgiving", label: "Thanksgiving Hymn", required: false },
+  { key: "exit", label: "Exit Hymn", required: true },
 ];
+
+// Safety cap so a runaway UI can't spawn 100 inputs
+const HARD_CAP = 10;
 
 const initializeSongs = () => {
   const songs = {};
@@ -110,7 +113,9 @@ export default function SongsPage() {
   const [searchingFields, setSearchingFields] = useState({});
   const [activeField, setActiveField] = useState(null);
 
-  const programRefs = useRef({});
+   const programRefs = useRef({});
+  const allSongsRef = useRef([]);
+  const songsLoadedRef = useRef(false);
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -211,6 +216,18 @@ export default function SongsPage() {
     }
   }, []);
 
+
+    useEffect(() => {
+    const handleClickOutside = (e) => {
+      // Any click that isn't inside an active song input/dropdown closes it
+      if (!e.target.closest('.sp-song-input-row')) {
+        setActiveField(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   useEffect(() => {
     const draftTimeout = setTimeout(() => {
       const hasContent =
@@ -242,14 +259,40 @@ export default function SongsPage() {
     return () => socket.disconnect();
   }, []);
 
-  useEffect(() => {
+   useEffect(() => {
     fetchPrograms();
   }, [token]);
 
+  // Preload ALL songs once into memory → instant local search
+  useEffect(() => {
+    if (songsLoadedRef.current) return;
+    songsLoadedRef.current = true;
+
+    axios
+      .get(`${BASE_URL}/api/songs`, { params: { limit: 10000 } })
+      .then((res) => {
+        const songs = res.data?.songs || [];
+        allSongsRef.current = songs.map((s) => ({
+          id: s.id,
+          title: s.title || "",
+          reference: s.reference || "",
+          preview: s.firstLine || "",
+          _t: (s.title || "").toLowerCase(),
+          _r: (s.reference || "").toLowerCase(),
+          _f: (s.firstLine || "").toLowerCase(),
+        }));
+        console.log(`[songs] preloaded ${allSongsRef.current.length} songs`);
+      })
+      .catch((err) => {
+        console.error("[songs] preload failed:", err);
+        songsLoadedRef.current = false;
+      });
+  }, []);
+
   /* ---------- FETCH ---------- */
-  const fetchPrograms = async (isRefresh = false) => {
+   const fetchPrograms = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
-    else setLoading(true);
+    else if (programs.length === 0) setLoading(true); // skeleton only on first load
     try {
       const res = await axios.get(`${BASE_URL}/api/admin/mass-programs`, { headers });
       let programsData = res.data;
@@ -272,34 +315,43 @@ export default function SongsPage() {
   };
 
   /* ---------- SONG SEARCH ---------- */
-  const performSearch = async (fieldKey, songIndex, searchText) => {
+     const performSearch = (fieldKey, songIndex, searchText, { silent = false } = {}) => {
     const searchId = `${fieldKey}-${songIndex}`;
-    if (!searchText || searchText.trim().length < 2) {
-      showNotification("Enter at least 2 characters to search", "info");
+    const q = (searchText || "").trim().toLowerCase();
+
+    if (q.length < 2) {
+      setSongSearchResults((prev) => ({ ...prev, [searchId]: [] }));
+      setActiveField((prev) => (prev === searchId ? null : prev));
       return;
     }
-    setSearchingFields((prev) => ({ ...prev, [searchId]: true }));
-    try {
-      const res = await axios.get(`${BASE_URL}/api/songs`, {
-        params: { search: searchText.trim(), limit: 10 },
-      });
-      const songs = res.data.songs || [];
-      const results = songs.map((song) => ({
-        id: song.id,
-        title: song.title,
-        reference: song.reference || "",
-        preview: song.firstLine || "",
-      }));
-      setSongSearchResults((prev) => ({ ...prev, [searchId]: results }));
-      setActiveField(searchId);
-      if (results.length === 0) {
-        showNotification(`No songs found matching "${searchText}"`, "info");
-      }
-    } catch (err) {
-      console.error("Search error:", err);
-      showNotification("Search failed. Please try again.", "error");
-    } finally {
-      setSearchingFields((prev) => ({ ...prev, [searchId]: false }));
+
+    const all = allSongsRef.current;
+    const hits = [];
+
+    for (let i = 0; i < all.length; i++) {
+      const s = all[i];
+      let score = 0;
+      if (s._t.includes(q)) score = s._t.startsWith(q) ? 4 : 3;
+      else if (s._r.includes(q)) score = 2;
+      else if (s._f.includes(q)) score = 1;
+      else continue;
+      hits.push({ score, song: s });
+    }
+
+    hits.sort((a, b) => b.score - a.score || a.song.title.localeCompare(b.song.title));
+
+    const results = hits.slice(0, 10).map(({ song }) => ({
+      id: song.id,
+      title: song.title,
+      reference: song.reference,
+      preview: song.preview,
+    }));
+
+    setSongSearchResults((prev) => ({ ...prev, [searchId]: results }));
+    setActiveField(searchId);
+
+    if (results.length === 0 && !silent) {
+      showNotification(`No songs found matching "${searchText}"`, "info");
     }
   };
 
@@ -314,25 +366,24 @@ export default function SongsPage() {
     setActiveField(null);
   };
 
-  const handleSongChange = (fieldKey, songIndex, value) => {
+    const handleSongChange = (fieldKey, songIndex, value) => {
     setForm((prev) => {
       const updatedSongs = [...prev.songs[fieldKey]];
       updatedSongs[songIndex] = value;
       return { ...prev, songs: { ...prev.songs, [fieldKey]: updatedSongs } };
     });
-    const searchId = `${fieldKey}-${songIndex}`;
-    setSongSearchResults((prev) => ({ ...prev, [searchId]: [] }));
-    setActiveField(null);
+    performSearch(fieldKey, songIndex, value, { silent: true });
   };
 
-  const addSongSlot = (fieldKey) => {
-    const field = songFields.find((f) => f.key === fieldKey);
-    if (field && form.songs[fieldKey].length < field.maxSongs) {
-      setForm((prev) => ({
-        ...prev,
-        songs: { ...prev.songs, [fieldKey]: [...prev.songs[fieldKey], ""] },
-      }));
+    const addSongSlot = (fieldKey) => {
+    if (form.songs[fieldKey].length >= HARD_CAP) {
+      showNotification(`Maximum ${HARD_CAP} songs per field`, "info");
+      return;
     }
+    setForm((prev) => ({
+      ...prev,
+      songs: { ...prev.songs, [fieldKey]: [...prev.songs[fieldKey], ""] },
+    }));
   };
 
   const removeSongSlot = (fieldKey, songIndex) => {
@@ -465,7 +516,7 @@ export default function SongsPage() {
   };
 
   /* ---------- SUBMIT / DELETE ---------- */
-  const handleSubmit = async (e) => {
+   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.date || !form.venue) {
       setFormError("Date and venue are required");
@@ -474,7 +525,7 @@ export default function SongsPage() {
     if (!validateRequiredSongs()) return;
     if (!checkForDuplicates()) return;
 
-    setIsSaving(true);
+    // Build payload once — used for optimistic row + API call
     const payload = {
       date: form.date,
       venue: form.venue,
@@ -485,33 +536,80 @@ export default function SongsPage() {
       }, {}),
     };
 
+    // ─── OPTIMISTIC UPDATE ───────────────────────────────────────────
+    const wasEditing = !!editingId;
+    const editingSnapshot = editingId;
+    const prevProgramsSnapshot = programs;
+    const tempId = wasEditing ? editingSnapshot : `temp-${Date.now()}`;
+
+    if (wasEditing) {
+      setPrograms((prev) =>
+        prev.map((p) => (p.id === editingSnapshot ? { ...p, ...payload } : p))
+      );
+    } else {
+      setPrograms((prev) => [{ id: tempId, ...payload }, ...prev]);
+    }
+
+    // Close form + clear draft BEFORE the request — user sees it as done
+    handleCancel();
+    setIsFormOpen(false);
+    setIsSaving(true);
+
     try {
-      if (editingId) {
-        await axios.put(`${BASE_URL}/api/admin/mass-programs/${editingId}`, payload, { headers });
+      if (wasEditing) {
+        const res = await axios.put(
+          `${BASE_URL}/api/admin/mass-programs/${editingSnapshot}`,
+          payload,
+          { headers }
+        );
+        const saved = res.data?.program || res.data;
+        if (saved?.id) {
+          setPrograms((prev) =>
+            prev.map((p) => (p.id === editingSnapshot ? saved : p))
+          );
+        }
         showNotification("Program updated successfully", "success");
       } else {
-        await axios.post(`${BASE_URL}/api/admin/mass-programs`, payload, { headers });
+        const res = await axios.post(
+          `${BASE_URL}/api/admin/mass-programs`,
+          payload,
+          { headers }
+        );
+        const saved = res.data?.program || res.data;
+        if (saved?.id) {
+          setPrograms((prev) =>
+            prev.map((p) => (p.id === tempId ? saved : p))
+          );
+        }
         showNotification("Program created successfully", "success");
       }
-      fetchPrograms();
-      handleCancel();
-      setIsFormOpen(false);
     } catch (err) {
       console.error("Save Error:", err);
-      setFormError(err.response?.data?.error || "Failed to save program");
+      // ─── ROLLBACK ──────────────────────────────────────────────────
+      setPrograms(prevProgramsSnapshot);
+      showNotification(
+        err.response?.data?.error || "Failed to save program — reverted",
+        "error"
+      );
     } finally {
       setIsSaving(false);
     }
   };
-
-  const handleDelete = async (id) => {
+   const handleDelete = async (id) => {
     if (!window.confirm("Delete this program?")) return;
+
+    const snapshot = programs;
+    // Remove from list immediately
+    setPrograms((prev) => prev.filter((p) => p.id !== id));
+    showNotification("Program deleted", "info");
+
     try {
       await axios.delete(`${BASE_URL}/api/admin/mass-programs/${id}`, { headers });
-      showNotification("Program deleted", "info");
-      fetchPrograms();
     } catch (err) {
-      showNotification("Failed to delete program", "error");
+      console.error("Delete Error:", err);
+      // Rollback if the server rejects
+      setPrograms(snapshot);
+      showNotification("Failed to delete program — reverted", "error");
     }
   };
 
@@ -1052,8 +1150,8 @@ export default function SongsPage() {
                               {field.label}
                               {field.required && <span className="sp-req-badge">Required</span>}
                             </span>
-                            <span className="sp-song-field-limit">
-                              {form.songs[field.key].length}/{field.maxSongs}
+                                                        <span className="sp-song-field-limit">
+                              {form.songs[field.key].length}
                             </span>
                           </div>
 
@@ -1134,7 +1232,7 @@ export default function SongsPage() {
                               );
                             })}
 
-                            {form.songs[field.key].length < field.maxSongs && (
+                                                        {form.songs[field.key].length < HARD_CAP && (
                               <button
                                 type="button"
                                 onClick={() => addSongSlot(field.key)}

@@ -33,7 +33,6 @@ const songFields = [
   { key: "exit", label: "Exit Hymn", required: true },
 ];
 
-// Safety cap so a runaway UI can't spawn 100 inputs
 const HARD_CAP = 10;
 
 const initializeSongs = () => {
@@ -113,7 +112,7 @@ export default function SongsPage() {
   const [searchingFields, setSearchingFields] = useState({});
   const [activeField, setActiveField] = useState(null);
 
-   const programRefs = useRef({});
+  const programRefs = useRef({});
   const allSongsRef = useRef([]);
   const songsLoadedRef = useRef(false);
   const token = localStorage.getItem("token");
@@ -216,10 +215,8 @@ export default function SongsPage() {
     }
   }, []);
 
-
-    useEffect(() => {
+  useEffect(() => {
     const handleClickOutside = (e) => {
-      // Any click that isn't inside an active song input/dropdown closes it
       if (!e.target.closest('.sp-song-input-row')) {
         setActiveField(null);
       }
@@ -259,7 +256,7 @@ export default function SongsPage() {
     return () => socket.disconnect();
   }, []);
 
-   useEffect(() => {
+  useEffect(() => {
     fetchPrograms();
   }, [token]);
 
@@ -290,9 +287,9 @@ export default function SongsPage() {
   }, []);
 
   /* ---------- FETCH ---------- */
-   const fetchPrograms = async (isRefresh = false) => {
+  const fetchPrograms = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
-    else if (programs.length === 0) setLoading(true); // skeleton only on first load
+    else if (programs.length === 0) setLoading(true);
     try {
       const res = await axios.get(`${BASE_URL}/api/admin/mass-programs`, { headers });
       let programsData = res.data;
@@ -315,7 +312,7 @@ export default function SongsPage() {
   };
 
   /* ---------- SONG SEARCH ---------- */
-     const performSearch = (fieldKey, songIndex, searchText, { silent = false } = {}) => {
+  const performSearch = (fieldKey, songIndex, searchText, { silent = false } = {}) => {
     const searchId = `${fieldKey}-${songIndex}`;
     const q = (searchText || "").trim().toLowerCase();
 
@@ -366,7 +363,7 @@ export default function SongsPage() {
     setActiveField(null);
   };
 
-    const handleSongChange = (fieldKey, songIndex, value) => {
+  const handleSongChange = (fieldKey, songIndex, value) => {
     setForm((prev) => {
       const updatedSongs = [...prev.songs[fieldKey]];
       updatedSongs[songIndex] = value;
@@ -375,7 +372,7 @@ export default function SongsPage() {
     performSearch(fieldKey, songIndex, value, { silent: true });
   };
 
-    const addSongSlot = (fieldKey) => {
+  const addSongSlot = (fieldKey) => {
     if (form.songs[fieldKey].length >= HARD_CAP) {
       showNotification(`Maximum ${HARD_CAP} songs per field`, "info");
       return;
@@ -515,8 +512,8 @@ export default function SongsPage() {
     return true;
   };
 
-  /* ---------- SUBMIT / DELETE ---------- */
-   const handleSubmit = async (e) => {
+  /* ---------- SUBMIT / DELETE (no optimistic updates) ---------- */
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.date || !form.venue) {
       setFormError("Date and venue are required");
@@ -525,7 +522,7 @@ export default function SongsPage() {
     if (!validateRequiredSongs()) return;
     if (!checkForDuplicates()) return;
 
-    // Build payload once — used for optimistic row + API call
+    setIsSaving(true);
     const payload = {
       date: form.date,
       venue: form.venue,
@@ -536,80 +533,34 @@ export default function SongsPage() {
       }, {}),
     };
 
-    // ─── OPTIMISTIC UPDATE ───────────────────────────────────────────
-    const wasEditing = !!editingId;
-    const editingSnapshot = editingId;
-    const prevProgramsSnapshot = programs;
-    const tempId = wasEditing ? editingSnapshot : `temp-${Date.now()}`;
-
-    if (wasEditing) {
-      setPrograms((prev) =>
-        prev.map((p) => (p.id === editingSnapshot ? { ...p, ...payload } : p))
-      );
-    } else {
-      setPrograms((prev) => [{ id: tempId, ...payload }, ...prev]);
-    }
-
-    // Close form + clear draft BEFORE the request — user sees it as done
-    handleCancel();
-    setIsFormOpen(false);
-    setIsSaving(true);
-
     try {
-      if (wasEditing) {
-        const res = await axios.put(
-          `${BASE_URL}/api/admin/mass-programs/${editingSnapshot}`,
-          payload,
-          { headers }
-        );
-        const saved = res.data?.program || res.data;
-        if (saved?.id) {
-          setPrograms((prev) =>
-            prev.map((p) => (p.id === editingSnapshot ? saved : p))
-          );
-        }
+      if (editingId) {
+        await axios.put(`${BASE_URL}/api/admin/mass-programs/${editingId}`, payload, { headers });
         showNotification("Program updated successfully", "success");
       } else {
-        const res = await axios.post(
-          `${BASE_URL}/api/admin/mass-programs`,
-          payload,
-          { headers }
-        );
-        const saved = res.data?.program || res.data;
-        if (saved?.id) {
-          setPrograms((prev) =>
-            prev.map((p) => (p.id === tempId ? saved : p))
-          );
-        }
+        await axios.post(`${BASE_URL}/api/admin/mass-programs`, payload, { headers });
         showNotification("Program created successfully", "success");
       }
+      fetchPrograms();
+      handleCancel();
+      setIsFormOpen(false);
     } catch (err) {
       console.error("Save Error:", err);
-      // ─── ROLLBACK ──────────────────────────────────────────────────
-      setPrograms(prevProgramsSnapshot);
-      showNotification(
-        err.response?.data?.error || "Failed to save program — reverted",
-        "error"
-      );
+      setFormError(err.response?.data?.error || "Failed to save program");
     } finally {
       setIsSaving(false);
     }
   };
-   const handleDelete = async (id) => {
+
+  const handleDelete = async (id) => {
     if (!window.confirm("Delete this program?")) return;
-
-    const snapshot = programs;
-    // Remove from list immediately
-    setPrograms((prev) => prev.filter((p) => p.id !== id));
-    showNotification("Program deleted", "info");
-
     try {
       await axios.delete(`${BASE_URL}/api/admin/mass-programs/${id}`, { headers });
+      showNotification("Program deleted", "info");
+      fetchPrograms();
     } catch (err) {
       console.error("Delete Error:", err);
-      // Rollback if the server rejects
-      setPrograms(snapshot);
-      showNotification("Failed to delete program — reverted", "error");
+      showNotification("Failed to delete program", "error");
     }
   };
 
@@ -1150,7 +1101,7 @@ export default function SongsPage() {
                               {field.label}
                               {field.required && <span className="sp-req-badge">Required</span>}
                             </span>
-                                                        <span className="sp-song-field-limit">
+                            <span className="sp-song-field-limit">
                               {form.songs[field.key].length}
                             </span>
                           </div>
@@ -1232,7 +1183,7 @@ export default function SongsPage() {
                               );
                             })}
 
-                                                        {form.songs[field.key].length < HARD_CAP && (
+                            {form.songs[field.key].length < HARD_CAP && (
                               <button
                                 type="button"
                                 onClick={() => addSongSlot(field.key)}
@@ -2393,4 +2344,3 @@ const skeletonCSS = `
 `;
 
 const mainCSS = baseCSS;
-

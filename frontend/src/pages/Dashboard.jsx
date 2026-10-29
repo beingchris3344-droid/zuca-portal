@@ -762,7 +762,7 @@ const nextEventText = nextEvent
   return (
     <div className="zd">
       <div className="zd-wrap">
-        <div className="zd-hero">
+        <div className="zd-hero">  
           {cover
             ? <img className="zd-cover" src={cover} alt="Cover" />
             : <div className="zd-cover" style={{ background: THEMES[theme] || THEMES.navy }} />}
@@ -887,16 +887,18 @@ const nextEventText = nextEvent
 
         <div className="zd-actions">
          <button onClick={() => navigate("/tools/pdf")} className="zd-act">
-  <FaFilePdf color="red" size={15} /><span>i <FaHeart color="red" /> PDF tools</span>
+  <FaFilePdf color="red" size={25} /><span> PDF tools</span>
 </button>
           <button onClick={() => setScanner(true)} className="zd-act">
-            <QrCode size={15} /><span>Scan QR</span>
-          </button>
+  <QrCode size={25} color="#00c900" />
+  <span style={{ color: '#000000', fontWeight: 'bold' }}><strong>SCAN QR CODE</strong></span>
+</button>
+
           <button onClick={() => window.dispatchEvent(new CustomEvent("openZUCAI"))} className="zd-act">
-            <FiMessageSquare size={15} /><span>Ask ZUCA</span>
+            <FiMessageSquare size={15} color ="#000000" /><span>Ask ZUCA AI</span>
           </button>
           <button onClick={() => navigate("/feedback")} className="zd-act">
-            <FiAlertCircle size={15} /><span>Feedback</span>
+            <FiAlertCircle size={15} color="blue" /><span>Feedback</span>
           </button>
           <button onClick={logout} className="zd-act danger">
             <FiLogOut size={15} /><span>Exit</span>

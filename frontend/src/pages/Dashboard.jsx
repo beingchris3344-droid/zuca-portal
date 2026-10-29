@@ -895,13 +895,13 @@ const nextEventText = nextEvent
 </button>
 
           <button onClick={() => window.dispatchEvent(new CustomEvent("openZUCAI"))} className="zd-act">
-            <FiMessageSquare size={15} color ="#000000" /><span>Ask ZUCA AI</span>
+            <FiMessageSquare size={25} color ="#000000" /><span>Ask ZUCA AI</span>
           </button>
           <button onClick={() => navigate("/feedback")} className="zd-act">
-            <FiAlertCircle size={15} color="blue" /><span>Feedback</span>
+            <FiAlertCircle size={25} color="blue" /><span>Feedback</span>
           </button>
           <button onClick={logout} className="zd-act danger">
-            <FiLogOut size={15} /><span>Exit</span>
+            <FiLogOut size={25} /><span>Exit</span>
           </button>
         </div>
         <br />

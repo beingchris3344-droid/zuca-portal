@@ -464,6 +464,20 @@ export default function HymnLyrics() {
               Back
             </button>
 
+
+             <button className="hl-back-btn" onClick={() => navigate("/dashboard")}>
+              <FiChevronLeft size={16} />
+              Home
+            </button>
+
+             <button className="hl-back-btn" onClick={() => navigate("/hymns")}>
+              <FiChevronLeft size={16} />
+              Full Hymn
+            </button>
+
+
+
+
             <div className="hl-topbar-actions">
               <button
                 className={`hl-action-btn ${isFavorite ? "active" : ""}`}

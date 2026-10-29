@@ -2,12 +2,13 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
 import logo from "../assets/zuca-logo.png";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import {
+  useParams, useNavigate, Link, useSearchParams,
+} from "react-router-dom";
 import {
   FiHeart, FiShare2, FiCopy, FiChevronLeft, FiChevronRight,
-  FiDownload, FiPrinter,
+  FiDownload,
 } from "react-icons/fi";
 import {
   BsWhatsapp, BsTelegram, BsTwitter, BsMusicNoteBeamed,
@@ -15,13 +16,18 @@ import {
 } from "react-icons/bs";
 import { GiPrayerBeads } from "react-icons/gi";
 import html2canvas from "html2canvas";
-import BASE_URL from "../api";
 import SmartTicker from "../components/SmartTicker";
+import {
+  resolveByIdOrTitle, getCached, prefetchById,
+} from "../lib/hymnCache";
 
 export default function HymnLyrics() {
   const { id } = useParams();
   const navigate = useNavigate();
   const songTitle = decodeURIComponent(id);
+  const [searchParams] = useSearchParams();
+  const hintedId = searchParams.get("id");
+
   const [song, setSong] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -37,42 +43,47 @@ export default function HymnLyrics() {
   }, []);
 
   useEffect(() => {
-    fetchSong();
-  }, [songTitle]);
-
-  const fetchSong = async () => {
-    try {
-      setLoading(true);
-      const title = decodeURIComponent(id);
-      const res = await axios.get(
-        `${BASE_URL}/api/public/hymns/search/${encodeURIComponent(title)}`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-
-      if (res.data?.success && res.data?.hymns?.length > 0) {
-        const exactMatch = res.data.hymns.find(
-          (h) => h.title.toLowerCase() === title.toLowerCase()
-        );
-        const hymnToUse = exactMatch || res.data.hymns[0];
-
-        const detailRes = await axios.get(
-          `${BASE_URL}/api/public/hymns/${hymnToUse.id}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-        );
-
-        if (detailRes.data.success) {
-          setSong(detailRes.data.hymn);
-          return;
-        }
-      }
-      setError("Song not found");
-    } catch (err) {
-      setError("Failed to load song");
-      console.error(err);
-    } finally {
-      setLoading(false);
+    if (hintedId && !getCached({ title: songTitle })) {
+      prefetchById({ id: hintedId, title: songTitle }, token);
     }
-  };
+  }, [hintedId, songTitle, token]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const cached = getCached({ title: songTitle });
+    if (cached) {
+      setSong(cached);
+      setLoading(false);
+      setError(null);
+    }
+
+    (async () => {
+      try {
+        if (!cached) setLoading(true);
+        const fresh = await resolveByIdOrTitle(songTitle, hintedId, token, {
+          revalidate: true,
+        });
+        if (cancelled) return;
+        if (fresh) {
+          setSong(fresh);
+          setError(null);
+        } else if (!cached) {
+          setError("Song not found");
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error(err);
+        if (!cached) setError("Failed to load song");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [songTitle, hintedId, token]);
 
   const toggleFavorite = () => {
     const newFavorites = favorites.includes(id)
@@ -120,7 +131,6 @@ export default function HymnLyrics() {
     setTimeout(() => toast.remove(), 3000);
   };
 
-  /* ---------------- TEXT FORMATTING ---------------- */
   const parseBoldText = (line) => {
     if (!line) return null;
     const parts = line.split(/(\*\*[^*]+\*\*)/g);
@@ -155,7 +165,6 @@ export default function HymnLyrics() {
     ));
   };
 
-  /* ---------------- DOWNLOADS ---------------- */
   const downloadAsImage = async () => {
     try {
       showToast("Preparing image...");
@@ -387,8 +396,7 @@ export default function HymnLyrics() {
     }
   };
 
-  /* ---------------- LOADING (unchanged) ---------------- */
-  if (loading) {
+  if (loading && !song) {
     return (
       <div style={loadingContainer}>
         <motion.div
@@ -396,13 +404,12 @@ export default function HymnLyrics() {
           transition={{ duration: 2, repeat: Infinity }}
           style={loadingSpinner}
         >
-          {loading && <img src={logo} alt="Loading..." style={{ width: "37px", height: "50px" }} />}
+          <img src={logo} alt="Loading..." style={{ width: "37px", height: "50px" }} />
         </motion.div>
         <p style={loadingText}>Loading lyrics...</p>
       </div>
     );
   }
- 
 
   if (error || !song) {
     return (
@@ -451,8 +458,6 @@ export default function HymnLyrics() {
       >
         <SmartTicker />
         <div className="hl-container">
-          {/* ============= TOP BAR ============= */}
-        
           <div className="hl-topbar">
             <button className="hl-back-btn" onClick={() => navigate(-1)}>
               <FiChevronLeft size={16} />
@@ -510,9 +515,7 @@ export default function HymnLyrics() {
             </div>
           </div>
 
-          {/* ============= MAIN GRID ============= */}
           <div className="hl-grid">
-            {/* ---- LYRICS COLUMN ---- */}
             <div className="hl-main">
               <div className="hl-title-block">
                 <div className="hl-title-icon">
@@ -542,9 +545,7 @@ export default function HymnLyrics() {
               </div>
             </div>
 
-            {/* ---- SIDEBAR COLUMN ---- */}
             <aside className="hl-side">
-              {/* Font size */}
               <div className="hl-card">
                 <div className="hl-card-title">Text size</div>
                 <div className="hl-font-row">
@@ -564,7 +565,6 @@ export default function HymnLyrics() {
                 </div>
               </div>
 
-              {/* Download */}
               <div className="hl-card">
                 <div className="hl-card-title">
                   <FiDownload size={13} /> Download
@@ -585,7 +585,6 @@ export default function HymnLyrics() {
                 </div>
               </div>
 
-              {/* Navigation */}
               <div className="hl-card">
                 <div className="hl-card-title">Navigation</div>
                 <button
@@ -611,9 +610,6 @@ export default function HymnLyrics() {
   );
 }
 
-/* =========================================================
-   STYLES
-   ========================================================= */
 const baseCSS = `
   .hl-page {
     background: #fafafa;
@@ -628,7 +624,6 @@ const baseCSS = `
     margin: 0 auto;
   }
 
-  /* ---------- TOP BAR ---------- */
   .hl-topbar {
     display: flex; justify-content: space-between; align-items: center;
     gap: 12px; margin-bottom: 24px;
@@ -681,7 +676,6 @@ const baseCSS = `
   }
   .hl-share-menu button:hover { background: #f5f5f5; }
 
-  /* ---------- LAYOUT GRID ---------- */
   .hl-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;
@@ -692,7 +686,6 @@ const baseCSS = `
     .hl-grid { grid-template-columns: 1fr; gap: 24px; }
   }
 
-  /* ---------- MAIN COLUMN ---------- */
   .hl-main {
     background: #ffffff;
     border: 1px solid #e5e5e5;
@@ -733,7 +726,6 @@ const baseCSS = `
     border-radius: 999px;
   }
 
-  /* ---------- LYRICS ---------- */
   .hl-lyrics { padding: 0 12px; }
   .hl-verse { margin-bottom: 28px; }
   .hl-verse:last-child { margin-bottom: 0; }
@@ -751,7 +743,6 @@ const baseCSS = `
     color: #0f0f0f;
   }
 
-  /* ---------- SIDEBAR ---------- */
   .hl-side {
     display: flex; flex-direction: column; gap: 12px;
     position: sticky;
@@ -774,7 +765,6 @@ const baseCSS = `
     margin-bottom: 12px;
   }
 
-  /* Font size control */
   .hl-font-row {
     display: grid; grid-template-columns: 1fr auto 1fr;
     align-items: center; gap: 8px;
@@ -793,7 +783,6 @@ const baseCSS = `
     text-align: center; min-width: 46px;
   }
 
-  /* Download grid */
   .hl-download-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -811,7 +800,6 @@ const baseCSS = `
   }
   .hl-dl-btn:hover { background: #f5f5f5; border-color: #d4d4d4; }
 
-  /* Navigation */
   .hl-nav-btn {
     display: flex; align-items: center; justify-content: center;
     gap: 6px;
@@ -830,7 +818,6 @@ const baseCSS = `
   }
   .hl-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* ---------- ERROR PAGE ---------- */
   .hl-error-page {
     min-height: 100vh;
     display: flex; flex-direction: column;
@@ -859,7 +846,6 @@ const baseCSS = `
   }
   .hl-error-btn:hover { background: #262626; }
 
-  /* ---------- RESPONSIVE ---------- */
   @media (max-width: 640px) {
     .hl-container { padding: 16px 16px 40px; }
     .hl-topbar { margin-bottom: 16px; }
@@ -875,7 +861,6 @@ const mainCSS = `
   }
 `;
 
-/* Loading screen — unchanged */
 const loadingContainer = {
   minHeight: "100vh",
   display: "flex",
@@ -925,4 +910,3 @@ const toastStyle = `
   text-overflow: ellipsis;
   font-family: 'Inter', sans-serif;
 `;
-

@@ -149,20 +149,243 @@ const AdminAIAssistant = lazy(() => import("./components/AdminAIAssistant"));
 /* ===== LAZY: global update notifier ===== */
 const UpdateNotification = lazy(() => import("./components/UpdateNotification"));
 
-/* ===== Page loader ===== */
-function PageLoader() {
+/* ===== Page loader — ZUCA portal opening ===== */
+function PageLoader({ label = "Opening portal" }) {
   return (
     <div
       style={{
         minHeight: "60vh",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: 14,
-        color: "#64748b",
+        gap: 28,
+        padding: 24,
       }}
     >
-      Loading…
+      <style>{`
+        @keyframes pl-portal-spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pl-portal-pulse {
+          0%, 100% { transform: scale(0.92); opacity: 0.65; }
+          50%      { transform: scale(1.06); opacity: 1; }
+        }
+        @keyframes pl-portal-glow {
+          0%, 100% { box-shadow: 0 0 24px 0 rgba(59,130,246,0.35); }
+          50%      { box-shadow: 0 0 44px 6px rgba(59,130,246,0.6); }
+        }
+        @keyframes pl-shimmer {
+          0%   { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        @keyframes pl-branch {
+          0%   { stroke-dashoffset: 100; opacity: 0; }
+          60%  { opacity: 1; }
+          100% { stroke-dashoffset: 0; opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .pl-spin, .pl-pulse, .pl-glow, .pl-sk, .pl-branch {
+            animation: none !important;
+          }
+        }
+      `}</style>
+
+      {/* ===== Portal emblem ===== */}
+      <div
+        style={{
+          position: "relative",
+          width: 120,
+          height: 120,
+          display: "grid",
+          placeItems: "center",
+        }}
+        role="img"
+        aria-label="Opening portal"
+      >
+        {/* Outer glow ring */}
+        <div
+          className="pl-glow"
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            border: "1px solid rgba(59,130,246,0.25)",
+            animation: "pl-portal-glow 2.4s ease-in-out infinite",
+          }}
+        />
+
+        {/* Rotating conic portal ring */}
+        <div
+          className="pl-spin"
+          style={{
+            position: "absolute",
+            inset: 8,
+            borderRadius: "50%",
+            background:
+              "conic-gradient(from 0deg, transparent 0deg, #3b82f6 60deg, #6366f1 120deg, transparent 180deg, transparent 360deg)",
+            WebkitMask:
+              "radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px))",
+            mask:
+              "radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px))",
+            animation: "pl-portal-spin 2.2s linear infinite",
+          }}
+        />
+
+        {/* Secondary counter-rotating thin ring */}
+        <div
+          className="pl-spin"
+          style={{
+            position: "absolute",
+            inset: 20,
+            borderRadius: "50%",
+            border: "1px dashed rgba(99,102,241,0.45)",
+            animation: "pl-portal-spin 6s linear infinite reverse",
+          }}
+        />
+
+        {/* Inner tree — SVG with self-drawing branches */}
+        <svg
+          viewBox="0 0 64 64"
+          width={56}
+          height={56}
+          style={{ position: "relative" }}
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="pl-tree-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#60a5fa" />
+              <stop offset="100%" stopColor="#4f46e5" />
+            </linearGradient>
+          </defs>
+
+          {/* Trunk */}
+          <path
+            d="M32 58 L32 34"
+            stroke="url(#pl-tree-grad)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            fill="none"
+          />
+
+          {/* Branches — drawn with dash offset */}
+          <g
+            className="pl-branch"
+            fill="none"
+            stroke="url(#pl-tree-grad)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path
+              d="M32 44 L20 34"
+              style={{
+                strokeDasharray: 100,
+                strokeDashoffset: 100,
+                animation: "pl-branch 1.6s ease-out forwards",
+                animationDelay: "0.1s",
+              }}
+            />
+            <path
+              d="M32 44 L44 34"
+              style={{
+                strokeDasharray: 100,
+                strokeDashoffset: 100,
+                animation: "pl-branch 1.6s ease-out forwards",
+                animationDelay: "0.25s",
+              }}
+            />
+            <path
+              d="M32 34 L24 24"
+              style={{
+                strokeDasharray: 100,
+                strokeDashoffset: 100,
+                animation: "pl-branch 1.6s ease-out forwards",
+                animationDelay: "0.4s",
+              }}
+            />
+            <path
+              d="M32 34 L40 24"
+              style={{
+                strokeDasharray: 100,
+                strokeDashoffset: 100,
+                animation: "pl-branch 1.6s ease-out forwards",
+                animationDelay: "0.55s",
+              }}
+            />
+            <path
+              d="M32 24 L32 12"
+              style={{
+                strokeDasharray: 100,
+                strokeDashoffset: 100,
+                animation: "pl-branch 1.6s ease-out forwards",
+                animationDelay: "0.7s",
+              }}
+            />
+          </g>
+
+          {/* Crown pulse */}
+          <circle
+            className="pl-pulse"
+            cx="32"
+            cy="12"
+            r="3"
+            fill="#93c5fd"
+            style={{ animation: "pl-portal-pulse 1.6s ease-in-out infinite" }}
+          />
+        </svg>
+      </div>
+
+      {/* ===== Label ===== */}
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          letterSpacing: 3,
+          textTransform: "uppercase",
+          color: "#64748b",
+          fontFamily:
+            'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+        }}
+      >
+        {label}…
+      </div>
+
+      {/* ===== Skeleton ghost of a page ===== */}
+      <div
+        aria-hidden="true"
+        style={{
+          width: "min(420px, 90vw)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          marginTop: 4,
+        }}
+      >
+        {[
+          { h: 14, w: "55%", delay: "0s" },
+          { h: 10, w: "90%", delay: "0.1s" },
+          { h: 10, w: "78%", delay: "0.2s" },
+          { h: 10, w: "64%", delay: "0.3s" },
+          { h: 44, w: "100%", delay: "0.4s", radius: 10 },
+          { h: 10, w: "85%", delay: "0.5s" },
+        ].map((row, i) => (
+          <div
+            key={i}
+            className="pl-sk"
+            style={{
+              height: row.h,
+              width: row.w,
+              borderRadius: row.radius ?? 6,
+              background:
+                "linear-gradient(90deg, rgba(148,163,184,0.18) 25%, rgba(148,163,184,0.32) 50%, rgba(148,163,184,0.18) 75%)",
+              backgroundSize: "200% 100%",
+              animation: "pl-shimmer 1.4s linear infinite",
+              animationDelay: row.delay,
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }

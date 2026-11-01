@@ -1932,7 +1932,7 @@ const nextEventText = nextEvent
 /* advert */
 .zd-trend{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#334155;margin:0 0 8px 2px}
 .zd-trend i{width:7px;height:7px;border-radius:50%;background:#22c55e}
-/* Advert — mobile-first: fixed 220px card, image band on top, text below */
+/* Advert — free-flowing, width-constrained, max-height limit */
 .zd-ad{
   display:flex;
   flex-direction:column;
@@ -1940,36 +1940,36 @@ const nextEventText = nextEvent
   border:1px solid var(--ln);
   border-radius:16px;
   overflow:hidden;
-  height:220px;
+  width:calc(100% - 32px);   
+  max-width:calc(100% - 32px);
+  margin:0 16px;              
   animation:zf .4s ease;
 }
 @keyframes zf{from{opacity:0}to{opacity:1}}
-
 .zd-adimg{
   flex:0 0 auto;
   width:100%;
-  height:100px;
   background:#0f172a;
   overflow:hidden;
+  display:flex;
+  justify-content:center;
 }
 .zd-adimg img{
   width:100%;
   height:100%;
-  object-fit:cover;
+  max-height:380px;
+  object-fit:fill;
   display:block;
 }
-.zd-adph{height:100px;display:grid;place-items:center;color:#94a3b8}
+.zd-adph{height:180px;display:grid;place-items:center;color:#94a3b8}
 
 .zd-adtx{
-  flex:1;
-  min-height:0;
-  padding:10px 14px 12px;
+  padding:12px 16px 16px;
   display:flex;
   flex-direction:column;
   justify-content:flex-start;
-  gap:4px;
+  gap:6px;
   min-width:0;
-  overflow:hidden;
 }
 .zd-adtx small{
   font-size:9px;
@@ -1980,29 +1980,24 @@ const nextEventText = nextEvent
 }
 .zd-adtx h2{
   margin:2px 0;
-  font-size:14px;
-  line-height:1.25;
+  font-size:15px;
+  line-height:1.3;
   font-weight:800;
   color:var(--ink);
   letter-spacing:-.2px;
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
 }
 .zd-adtx p{
   margin:0;
   color:var(--mut);
-  font-size:11.5px;
-  line-height:1.45;
+  font-size:12.5px;
+  line-height:1.55;
   max-width:65ch;
-  white-space:normal;
+  white-space:pre-line;
   overflow-wrap:anywhere;
   word-break:break-word;
-  display:-webkit-box;
-  -webkit-line-clamp:3;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
 }
 
 .zd-adimg::-webkit-scrollbar,
@@ -2456,60 +2451,46 @@ const nextEventText = nextEvent
   .zd-stats{flex:0 0 auto;border-top:0;border-left:1px solid var(--ln);align-self:stretch}
     .zd-stats>*{padding:0 20px}
   .zd-arrow{display:grid}
-      /* Advert — desktop: image left, text right, fixed 200px card */
+      /* Advert — desktop: image left, text right, content-driven height */
   .zd-ad{
     display:flex;
     flex-direction:row;
     align-items:stretch;
-    max-height:200px;
-    height:200px;
-    overflow:hidden;
   }
   .zd-adimg{
     flex:0 0 34%;
-    height:100%;
+    display:flex;
+    align-items:center;
     background:#0f172a;
-    overflow:hidden;
   }
-  .zd-adimg img{
+    .zd-adimg img{
     width:100%;
     height:100%;
-    object-fit:cover;
+    max-height:100%;
+    object-fit:fill; 
     display:block;
   }
   .zd-adtx{
     flex:1;
-    height:100%;
-    padding:14px 20px;
+    padding:16px 20px;
     display:flex;
     flex-direction:column;
     justify-content:center;
     gap:6px;
     min-width:0;
-    min-height:0;
-    overflow:hidden;
   }
   .zd-adtx small{
     font-size:9px;
   }
   .zd-adtx h2{
     font-size:16px;
-    line-height:1.25;
+    line-height:1.3;
     margin:2px 0;
-    display:-webkit-box;
-    -webkit-line-clamp:1;
-    -webkit-box-orient:vertical;
-    overflow:hidden;
   }
   .zd-adtx p{
-    font-size:11.5px;
-    line-height:1.45;
-    white-space:normal;
+    font-size:12px;
+    line-height:1.5;
     margin:0;
-    display:-webkit-box;
-    -webkit-line-clamp:2;
-    -webkit-box-orient:vertical;
-    overflow:hidden;
   }
   .zd-btn{
     margin-top:6px;
@@ -2589,114 +2570,7 @@ const nextEventText = nextEvent
 }
 @media (prefers-reduced-motion:reduce){.zd *{animation:none!important;transition:none!important}}
 
-/* ============================================================
-   ADVERT — mobile only: image top, text bottom, title always visible
-   (Desktop untouched — desktop rules live in the min-width:768px block)
-============================================================ */
-@media (max-width: 767px){
-
-  /* Card: vertical stack, auto height, no clipping of text */
-  .zd-ad{
-    display:flex !important;
-    flex-direction:column !important;
-    align-items:stretch !important;
-    height:auto !important;
-    max-height:none !important;
-    overflow:visible !important;
-  }
-
-  /* Image band on top — fixed height so it never eats the text */
-  .zd-adimg{
-    flex:0 0 auto !important;
-    width:100% !important;
-    height:180px !important;
-    background:#0f172a !important;
-    overflow:hidden !important;
-  }
-  .zd-adimg img{
-    width:100% !important;
-    height:100% !important;
-    object-fit:cover !important;
-    display:block !important;
-  }
-  .zd-adph{
-    height:180px !important;
-    display:grid !important;
-    place-items:center !important;
-    color:#94a3b8 !important;
-  }
-
-  /* Text block below — flows naturally, no forced clamps */
-  .zd-adtx{
-    flex:1 1 auto !important;
-    height:auto !important;
-    min-height:0 !important;
-    padding:12px 14px 14px !important;
-    display:flex !important;
-    flex-direction:column !important;
-    justify-content:flex-start !important;
-    gap:6px !important;
-    overflow:visible !important;
-  }
-
-  .zd-adtx small{
-    font-size:9px !important;
-    flex:0 0 auto !important;
-  }
-
-  /* Title — full, wraps naturally, no truncation */
-  .zd-adtx h2{
-    flex:0 0 auto !important;
-    font-size:15px !important;
-    line-height:1.3 !important;
-    margin:2px 0 4px !important;
-    display:block !important;
-    -webkit-line-clamp:unset !important;
-    white-space:normal !important;
-    overflow:visible !important;
-    max-height:none !important;
-  }
-
-  /* Description — keep the paragraph formatting from formatAdText() */
-  .zd-adtx p{
-    flex:1 1 auto !important;
-    min-height:0 !important;
-    font-size:12px !important;
-    line-height:1.5 !important;
-    color:var(--mut) !important;
-    white-space:pre-line !important;
-    overflow-wrap:anywhere !important;
-    word-break:break-word !important;
-    margin:0 !important;
-    display:block !important;
-    -webkit-line-clamp:unset !important;
-    overflow:visible !important;
-    max-height:none !important;
-  }
-
-  /* CTA button */
-  .zd-btn{
-    flex:0 0 auto !important;
-    margin-top:8px !important;
-  }
-
-  /* Advert controls under the card — stack nicely on phones */
-  .zd-adctl{
-    gap:8px !important;
-  }
-  .zd-adctl > div:first-child{
-    flex:1 1 auto !important;
-    justify-content:center !important;
-  }
-  .zd-adctl > button{
-    flex:1 1 auto !important;
-    justify-content:center !important;
-  }
-  .zd-dots{
-    flex:1 1 100% !important;
-    justify-content:center !important;
-  }
-}
+now whenre is the max 
 
 
  /* Section layout */

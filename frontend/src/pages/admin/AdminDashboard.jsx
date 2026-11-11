@@ -1776,7 +1776,7 @@ axios.get(`${BASE_URL}/api/advertisements`, { headers }).catch(() => ({ data: []
           padding: 8px;
           background: #f8fafc;
           border-radius: 8px;
-          font-size: 12px;
+          font-size: 13px;
         }
         .health-item.full-width { grid-column: span 2; }
         .health-status {

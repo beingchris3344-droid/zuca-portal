@@ -875,9 +875,10 @@ const BookletModal = ({ program, onClose }) => {
         pdf.addImage(imgData, "JPEG", 0, 0, pdfW, pdfH, undefined, "FAST");
       }
 
-      pdf.save(
-        `Mass_Booklet_${bookletData.program?.date || "mass"}_${paperSize}.pdf`
-      );
+                  const venueName = bookletData.program?.venue || "Mass";
+      const dateStr = bookletData.program?.formattedDate || bookletData.program?.date || "";
+      const safeVenue = venueName.replace(/[/\\?%*:|"<>]/g, '-');
+      pdf.save(`${safeVenue} PROG BOOKLET ${dateStr}.${paperSize}.pdf`);
     } catch (err) {
       console.error("PDF generation failed:", err);
       alert("Could not generate PDF. Please try again.");
@@ -911,7 +912,10 @@ const BookletModal = ({ program, onClose }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Mass_Booklet_${bookletData.program?.date || "mass"}_${paperSize}.doc`;
+            const venueName = bookletData.program?.venue || "Mass";
+      const dateStr = bookletData.program?.formattedDate || bookletData.program?.date || "";
+      const safeVenue = venueName.replace(/[/\\?%*:|"<>]/g, '-');
+      a.download = `${safeVenue} PROG BOOKLET ${dateStr}.${paperSize}.doc`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {

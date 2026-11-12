@@ -33,16 +33,29 @@ const MAX_LINES = {
 
 const MM_TO_PX = 3.7795;
 
+// Helper function to determine if a color is light
+const isLightColor = (hex) => {
+  if (!hex || typeof hex !== "string") return false;
+  let c = hex.replace("#", "");
+  if (c.length === 3) c = c.split("").map((x) => x + x).join("");
+  if (c.length !== 6) return false;
+  const r = parseInt(c.substring(0, 2), 16) / 255;
+  const g = parseInt(c.substring(2, 4), 16) / 255;
+  const b = parseInt(c.substring(4, 6), 16) / 255;
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.6;
+};
+
 /* =========================================================
    SHARED PAGE CSS
 ========================================================= */
-const buildPageCSS = (paperSize, columns) => {
+const buildPageCSS = (paperSize, columns, bgImage, coverBoxColor = "#FFD700") => {
   const p = PAPER[paperSize];
   const colGap = columns === 1 ? 0 : columns === 2 ? 7 : 5;
 
   const scale = p.w / 210;
   
-    const coverOrg = Math.max(10, 18 * scale);
+  const coverOrg = Math.max(10, 18 * scale);
   const coverSeason = Math.max(10, 16 * scale);
   const coverDate = Math.max(14, 24 * scale);
   const coverVenue = Math.max(10, 18 * scale);
@@ -50,6 +63,13 @@ const buildPageCSS = (paperSize, columns) => {
   
   const boxPaddingV = Math.max(4, 8 * scale);
   const boxPaddingH = Math.max(4, 10 * scale);
+
+  // Adaptive box colors
+  const lightBox = isLightColor(coverBoxColor);
+  const boxBg = lightBox 
+    ? `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), ${coverBoxColor}` 
+    : coverBoxColor;
+  const boxBorder = lightBox ? "#f1c40f" : coverBoxColor;
 
   return `
     @page {
@@ -205,7 +225,7 @@ const buildPageCSS = (paperSize, columns) => {
       min-height: ${p.h}mm;
       padding: ${p.padV + 6}mm ${p.padH + 4}mm;
       box-sizing: border-box;
-      background-image: url('${coverImage}');
+      background-image: url('${bgImage}');
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -220,14 +240,14 @@ const buildPageCSS = (paperSize, columns) => {
       font-family: Georgia, serif;
     }
 
-           .bk-cover-text-box {
+    .bk-cover-text-box {
       position: relative;
-      background: radial-gradient(circle at center, rgba(230, 180, 40, 0.95) 0%, rgba(180, 120, 10, 0.9) 100%);
+      background: ${boxBg};
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
       padding: ${boxPaddingV}mm ${boxPaddingH}mm;
       border-radius: 16px;
-      border: 2px solid #fdf0b0;
+      border: 2px solid ${boxBorder};
       outline: 1px solid rgba(255, 255, 255, 0.4);
       outline-offset: -8px;
       width: 85%;
@@ -240,6 +260,7 @@ const buildPageCSS = (paperSize, columns) => {
       print-color-adjust: exact;
       box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 30px rgba(255,255,255,0.3);
     }
+    
     .bk-cover-text-box::before,
     .bk-cover-text-box::after {
       content: "";
@@ -282,7 +303,7 @@ const buildPageCSS = (paperSize, columns) => {
       font-weight: 800;
       letter-spacing: 2px;
       text-transform: uppercase;
-      color: #f1c40f;
+      color: #ffffff;
       margin-bottom: 2mm;
       text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
       word-wrap: break-word;
@@ -299,9 +320,9 @@ const buildPageCSS = (paperSize, columns) => {
     .bk-cover-season {
       font-style: italic;
       font-size: ${coverSeason}pt;
-      color: #fff;
+      color: #ffffff;
       margin-bottom: 2mm;
-      line-height: 1.3;
+      line-height: 1.3;      
       text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
       word-wrap: break-word;
       width: 100%;
@@ -310,7 +331,7 @@ const buildPageCSS = (paperSize, columns) => {
     .bk-cover-date {
       font-size: ${coverDate}pt;
       font-weight: 700;
-      color: #fff;
+      color: #ffffff;
       margin-bottom: 1mm;
       text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
       word-wrap: break-word;
@@ -319,7 +340,7 @@ const buildPageCSS = (paperSize, columns) => {
 
     .bk-cover-venue {
       font-size: ${coverVenue}pt;
-      color: rgba(255,255,255,0.95);
+      color: #ffffff;
       letter-spacing: .05em;
       font-weight: 900;
       text-decoration: underline;
@@ -755,17 +776,19 @@ const BookletModal = ({ program, onClose }) => {
     bookletData?.program?.parish ||
     "";
 
-    const buildCoverHTML = () => {
+  const buildCoverHTML = () => {
     const org = bookletData.program?.org || bookletData.program?.parish || "";
+    const showText = bookletData.program?.showCoverText !== false;
 
     return `<div class="bk-cover">
+      ${showText ? `
       <div class="bk-cover-text-box">
         ${org ? `<div class="bk-cover-org">${org}</div>` : ""}
         <div class="bk-cover-rule"></div>
         <div class="bk-cover-season">${bookletData.program?.season || ""}</div>
         <div class="bk-cover-date">${bookletData.program?.formattedDate || ""}</div>
         <div class="bk-cover-venue">${bookletData.program?.venue || ""}</div>
-      </div>
+      </div>` : ""}
     </div>`;
   };
 
@@ -829,7 +852,8 @@ const BookletModal = ({ program, onClose }) => {
     if (!bookletData || busy) return;
     setBusy("pdf");
 
-    const css = buildPageCSS(paperSize, columns);
+    const activeCover = bookletData.program?.coverImageUrl || coverImage;
+    const css = buildPageCSS(paperSize, columns, activeCover, bookletData.program?.coverTextColor || "#FFD700");
     const container = document.createElement("div");
     container.style.cssText = `
       position: fixed;
@@ -875,7 +899,7 @@ const BookletModal = ({ program, onClose }) => {
         pdf.addImage(imgData, "JPEG", 0, 0, pdfW, pdfH, undefined, "FAST");
       }
 
-                  const venueName = bookletData.program?.venue || "Mass";
+      const venueName = bookletData.program?.venue || "Mass";
       const dateStr = bookletData.program?.formattedDate || bookletData.program?.date || "";
       const safeVenue = venueName.replace(/[/\\?%*:|"<>]/g, '-');
       pdf.save(`${safeVenue} PROG BOOKLET ${dateStr}.${paperSize}.pdf`);
@@ -893,7 +917,8 @@ const BookletModal = ({ program, onClose }) => {
     setBusy("word");
 
     try {
-      const css = buildPageCSS(paperSize, columns);
+      const activeCover = bookletData.program?.coverImageUrl || coverImage;
+      const css = buildPageCSS(paperSize, columns, activeCover, bookletData.program?.coverTextColor || "#FFD700");
       const html = `<!DOCTYPE html>
         <html xmlns:o="urn:schemas-microsoft-com:office:office"
               xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -912,7 +937,7 @@ const BookletModal = ({ program, onClose }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-            const venueName = bookletData.program?.venue || "Mass";
+      const venueName = bookletData.program?.venue || "Mass";
       const dateStr = bookletData.program?.formattedDate || bookletData.program?.date || "";
       const safeVenue = venueName.replace(/[/\\?%*:|"<>]/g, '-');
       a.download = `${safeVenue} PROG BOOKLET ${dateStr}.${paperSize}.doc`;
@@ -937,7 +962,8 @@ const BookletModal = ({ program, onClose }) => {
         setBusy(null);
         return;
       }
-      const css = buildPageCSS(paperSize, columns);
+      const activeCover = bookletData.program?.coverImageUrl || coverImage;
+      const css = buildPageCSS(paperSize, columns, activeCover, bookletData.program?.coverTextColor || "#FFD700");
       const html = `<!DOCTYPE html>
         <html>
         <head>
@@ -1175,7 +1201,7 @@ const BookletModal = ({ program, onClose }) => {
       </div>
 
       {/* Shared page CSS */}
-      <style>{buildPageCSS(paperSize, columns)}</style>
+      <style>{buildPageCSS(paperSize, columns, bookletData?.program?.coverImageUrl || coverImage, bookletData?.program?.coverTextColor || "#FFD700")}</style>
 
       {/* Modal chrome CSS */}
       <style>{`

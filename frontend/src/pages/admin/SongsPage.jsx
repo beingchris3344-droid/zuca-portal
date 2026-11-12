@@ -16,6 +16,7 @@ import backgroundImg from "../../assets/background.png";
 import BASE_URL from "../../api";
 import BookletModal from "../../components/BookletModal";
 import { FaFilePdf } from "react-icons/fa";
+import CoverPickerModal from "../../components/CoverPickerModal";
 
 /* ============================================================
    CONSTANTS
@@ -93,7 +94,15 @@ export default function SongsPage() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ date: "", venue: "", songs: initializeSongs() });
+  const [form, setForm] = useState({ 
+  date: "", 
+  venue: "", 
+  coverImageUrl: "", 
+  showCoverText: true, 
+  coverTextColor: "#FFD700",
+  songs: initializeSongs() 
+});
+  const [isCoverModalOpen, setIsCoverModalOpen] = useState(false);
   const [formError, setFormError] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [expandedPrograms, setExpandedPrograms] = useState({});
@@ -152,7 +161,11 @@ export default function SongsPage() {
       const saved = localStorage.getItem(draftKey);
       if (!saved) return;
       const parsed = JSON.parse(saved);
-      const formData = parsed.data;
+     const formData = {
+  ...parsed.data,
+  showCoverText: parsed.data.showCoverText !== false,
+  coverTextColor: parsed.data.coverTextColor || "#FFD700",
+};
       if (!formData.songs || Object.keys(formData.songs).length === 0) {
         formData.songs = initializeSongs();
       }
@@ -198,7 +211,11 @@ export default function SongsPage() {
         const draftTime = draft.timestamp || 0;
         const now = Date.now();
         if (now - draftTime < 24 * 60 * 60 * 1000) {
-          const loadedForm = draft.data;
+          const loadedForm = {
+  ...draft.data,
+  showCoverText: draft.data.showCoverText !== false,
+  coverTextColor: draft.data.coverTextColor || "#FFD700",
+};
           if (!loadedForm.songs || Object.keys(loadedForm.songs).length === 0) {
             loadedForm.songs = initializeSongs();
           }
@@ -395,32 +412,39 @@ export default function SongsPage() {
   };
 
   /* ---------- EDIT / CANCEL ---------- */
-  const handleEdit = (program) => {
-    setEditingId(program.id);
-    const songs = {};
-    songFields.forEach((field) => {
-      songs[field.key] = parseSongsFromString(program[field.key]);
-    });
-    setForm({ date: program.date, venue: program.venue, songs });
-    setIsFormOpen(true);
-    setFormError("");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+ const handleEdit = (program) => {
+  setEditingId(program.id);
+  const songs = {};
+  songFields.forEach((field) => {
+    songs[field.key] = parseSongsFromString(program[field.key]);
+  });
+  setForm({ 
+    date: program.date, 
+    venue: program.venue, 
+    coverImageUrl: program.coverImageUrl || "", 
+    showCoverText: program.showCoverText !== false, 
+    coverTextColor: program.coverTextColor || "#FFD700",
+    songs 
+  });
+  setIsFormOpen(true);
+  setFormError("");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
 
   const handleCancel = () => {
-    setEditingId(null);
-    setForm({ date: "", venue: "", songs: initializeSongs() });
-    setFormError("");
-    localStorage.removeItem("programDraft");
-  };
+  setEditingId(null);
+  setForm({ date: "", venue: "", coverImageUrl: "", showCoverText: true, coverTextColor: "#FFD700", songs: initializeSongs() });
+  setFormError("");
+  localStorage.removeItem("programDraft");
+};
 
-  const handleCancelProgram = () => {
-    setForm({ date: "", venue: "", songs: initializeSongs() });
-    setFormError("");
-    setEditingId(null);
-    setIsFormOpen(false);
-    localStorage.removeItem("programDraft");
-  };
+   const handleCancelProgram = () => {
+ setForm({ date: "", venue: "", coverImageUrl: "", showCoverText: true, coverTextColor: "#FFD700", songs: initializeSongs() });
+  setFormError("");
+  setEditingId(null);
+  setIsFormOpen(false);
+  localStorage.removeItem("programDraft");
+};
 
   /* ---------- VALIDATION ---------- */
   const checkForDuplicates = () => {
@@ -523,10 +547,13 @@ export default function SongsPage() {
     if (!checkForDuplicates()) return;
 
     setIsSaving(true);
-    const payload = {
-      date: form.date,
-      venue: form.venue,
-      ...Object.entries(form.songs).reduce((acc, [key, songs]) => {
+      const payload = {
+  date: form.date,
+  venue: form.venue,
+  coverImageUrl: form.coverImageUrl,
+  showCoverText: form.showCoverText,
+  coverTextColor: form.coverTextColor,
+  ...Object.entries(form.songs).reduce((acc, [key, songs]) => {
         const filteredSongs = songs.filter((song) => song && song.trim() !== "");
         acc[key] = filteredSongs.length > 0 ? filteredSongs.join("; ") : "";
         return acc;
@@ -897,7 +924,14 @@ export default function SongsPage() {
               className="sp-draft-clear"
               onClick={() => {
                 localStorage.removeItem("programDraft");
-                setForm({ date: "", venue: "", songs: initializeSongs() });
+                setForm({
+  date: "",
+  venue: "",
+  coverImageUrl: "",
+  showCoverText: true,
+  coverTextColor: "#FFD700",
+  songs: initializeSongs(),
+});
                 setEditingId(null);
                 setDraftLoaded(false);
                 showNotification("Draft cleared", "info");
@@ -1085,6 +1119,73 @@ export default function SongsPage() {
                     </div>
                   </div>
 
+
+                                    <div className="sp-field" style={{ marginBottom: "24px" }}>
+                    <label>Program Cover</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                      {form.coverImageUrl ? (
+                        <img 
+                          src={form.coverImageUrl} 
+                          alt="Cover" 
+                          style={{ width: "64px", height: "96px", objectFit: "cover", borderRadius: "8px", border: "1px solid #e5e5e5" }} 
+                        />
+                      ) : (
+                        <div style={{ width: "64px", height: "96px", background: "#f5f5f5", borderRadius: "8px", border: "1px solid #e5e5e5", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#a3a3a3", textAlign: "center" }}>
+                          Default
+                        </div>
+                      )}
+                      <button 
+                        type="button" 
+                        onClick={() => setIsCoverModalOpen(true)}
+                        className="sp-btn"
+                      >
+                        Change Cover
+                      </button>
+                    </div>
+                  </div>
+
+
+
+                  {/* Cover text controls */}
+<div className="sp-field" style={{ marginBottom: "24px" }}>
+  <label className="flex items-center gap-2 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={form.showCoverText}
+      onChange={(e) => handleChange("showCoverText", e.target.checked)}
+      style={{ width: "16px", height: "16px", cursor: "pointer" }}
+    />
+    <span style={{ fontSize: "13px", fontWeight: 600, color: "#262626" }}>
+      Show text on cover image
+    </span>
+  </label>
+
+  {form.showCoverText && (
+    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "10px" }}>
+      <label style={{ fontSize: "12px", fontWeight: 600, color: "#525252", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        Cover box color
+      </label>
+     <input
+  type="color"
+  value={form.coverTextColor}
+  onChange={(e) => handleChange("coverTextColor", e.target.value)}
+  style={{
+    width: "42px",
+    height: "38px",
+    padding: "2px",
+    border: "1px solid #e5e5e5",
+    borderRadius: "9px",
+    cursor: "pointer",
+    background: "#ffffff",
+  }}
+/>
+      <span style={{ fontSize: "12px", color: "#a3a3a3", fontFamily: "monospace" }}>
+        {form.coverTextColor}
+      </span>
+    </div>
+  )}
+</div>
+
                   {/* Songs */}
                   <div className="sp-songs-section">
                     <div className="sp-songs-heading">
@@ -1269,15 +1370,35 @@ export default function SongsPage() {
                     className="sp-program-head"
                     onClick={() => toggleProgram(program.id)}
                   >
-                    <div className="sp-program-info">
-                      <div className="sp-program-date">
-                        <FiCalendar size={13} />
-                        <span>{formatDate(program.date)}</span>
+                    <div className="sp-program-info" style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                      
+                     {/* Thumbnail */}
+<img
+  src={program.coverImageUrl}
+  alt="Cover"
+  style={{
+    width: "80px",       /* Larger width */
+    height: "110px",     /* Larger height */
+    objectFit: "cover",
+    borderRadius: "8px", /* Slightly rounder corners */
+    border: "1px solid #e5e5e5",
+    flexShrink: 0,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)" /* Nice shadow like WhatsApp */
+  }}
+/>
+
+                      {/* Text Info */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <div className="sp-program-date">
+                          <FiCalendar size={13} />
+                          <span>{formatDate(program.date)}</span>
+                        </div>
+                        <div className="sp-program-venue">
+                          <FiMapPin size={13} />
+                          <span>{program.venue}</span>
+                        </div>
                       </div>
-                      <div className="sp-program-venue">
-                        <FiMapPin size={13} />
-                        <span>{program.venue}</span>
-                      </div>
+
                     </div>
 
                     <div className="sp-program-actions">
@@ -1423,6 +1544,14 @@ export default function SongsPage() {
         <BookletModal
           program={selectedProgramForBooklet}
           onClose={() => setSelectedProgramForBooklet(null)}
+        />
+      )}
+
+            {isCoverModalOpen && (
+        <CoverPickerModal 
+          currentCoverUrl={form.coverImageUrl}
+          onSelect={(url) => setForm(prev => ({ ...prev, coverImageUrl: url }))}
+          onClose={() => setIsCoverModalOpen(false)}
         />
       )}
 
@@ -2098,7 +2227,7 @@ const baseCSS = `
   .sp-program-head {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start; /* Changed from center to flex-start */
     gap: 16px;
     padding: 16px 20px;
     cursor: pointer;
@@ -2284,7 +2413,7 @@ const baseCSS = `
     .sp-form-actions { flex-direction: column-reverse; }
     .sp-form-actions .sp-btn { width: 100%; justify-content: center; }
     .sp-program-head { flex-direction: column; align-items: stretch; gap: 12px; }
-    .sp-program-info { gap: 8px; flex-direction: column; align-items: flex-start; }
+    .sp-program-info { gap: 8px; flex-direction: row; align-items: center; }
     .sp-program-actions { justify-content: flex-end; }
     .sp-drawer { width: 100%; }
   }

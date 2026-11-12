@@ -6,6 +6,7 @@ import axios from "axios";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import BASE_URL from "../api";
+import coverImage from "../assets/cover.png";
 
 /* =========================================================
    PAPER + LAYOUT DEFINITIONS
@@ -40,14 +41,15 @@ const buildPageCSS = (paperSize, columns) => {
   const colGap = columns === 1 ? 0 : columns === 2 ? 7 : 5;
 
   const scale = p.w / 210;
-  const coverLogo = Math.round(52 * scale);
-  const coverOrg = Math.max(6, 8.5 * scale);
-  const coverTitle = Math.max(12, 28 * scale);
-  const coverSeason = Math.max(7, 10.5 * scale);
-  const coverDate = Math.max(8, 11.5 * scale);
-  const coverVenue = Math.max(7, 10 * scale);
-  const coverRule = Math.max(15, 30 * scale);
-  const coverSpace = Math.max(4, 10 * scale);
+  
+    const coverOrg = Math.max(10, 18 * scale);
+  const coverSeason = Math.max(10, 16 * scale);
+  const coverDate = Math.max(14, 24 * scale);
+  const coverVenue = Math.max(10, 18 * scale);
+  const coverRule = Math.max(15, 35 * scale);
+  
+  const boxPaddingV = Math.max(4, 8 * scale);
+  const boxPaddingH = Math.max(4, 10 * scale);
 
   return `
     @page {
@@ -203,64 +205,127 @@ const buildPageCSS = (paperSize, columns) => {
       min-height: ${p.h}mm;
       padding: ${p.padV + 6}mm ${p.padH + 4}mm;
       box-sizing: border-box;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      background-image: url('${coverImage}');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
       color: #fff;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-end;
       align-items: center;
       text-align: center;
       page-break-after: always;
       break-after: page;
       font-family: Georgia, serif;
     }
-    .bk-cover-logo {
-      max-width: ${coverLogo}mm;
-      height: auto;
-      margin-bottom: ${coverSpace}mm;
-      background: #fff;
-      padding: 6px;
-      border-radius: 6px;
+
+           .bk-cover-text-box {
+      position: relative;
+      background: radial-gradient(circle at center, rgba(230, 180, 40, 0.95) 0%, rgba(180, 120, 10, 0.9) 100%);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: ${boxPaddingV}mm ${boxPaddingH}mm;
+      border-radius: 16px;
+      border: 2px solid #fdf0b0;
+      outline: 1px solid rgba(255, 255, 255, 0.4);
+      outline-offset: -8px;
+      width: 85%;
+      max-width: 160mm;
+      margin-bottom: -5mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5), inset 0 0 30px rgba(255,255,255,0.3);
     }
+    .bk-cover-text-box::before,
+    .bk-cover-text-box::after {
+      content: "";
+      position: absolute;
+      width: 25px;
+      height: 25px;
+      border: 3px solid #fff;
+      border-radius: 4px;
+      opacity: 0.7;
+    }
+
+    .bk-cover-text-box::before {
+      top: 4px;
+      left: 4px;
+      border-right: none;
+      border-bottom: none;
+      border-top-left-radius: 12px;
+    }
+
+    .bk-cover-text-box::after {
+      bottom: 4px;
+      right: 4px;
+      border-left: none;
+      border-top: none;
+      border-bottom-right-radius: 12px;
+    }
+
+    .bk-cover-rule {
+      width: ${coverRule}mm;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, #ffffff, transparent);
+      margin: 3mm auto;
+      border-radius: 50%;
+      opacity: 0.8;
+    }
+
     .bk-cover-org {
       font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
       font-size: ${coverOrg}pt;
       font-weight: 800;
-      letter-spacing: 3px;
+      letter-spacing: 2px;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.72);
-      margin-bottom: ${coverSpace}mm;
+      color: #f1c40f;
+      margin-bottom: 2mm;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+      word-wrap: break-word;
+      width: 100%;
     }
-    .bk-cover-title {
-      font-size: ${coverTitle}pt;
-      font-weight: 700;
-      letter-spacing: 1px;
-      line-height: 1.15;
-      margin: 0;
-    }
+
     .bk-cover-rule {
       width: ${coverRule}mm;
       height: 1px;
-      background: rgba(255,255,255,0.4);
-      margin: ${coverSpace}mm auto;
+      background: rgba(241, 196, 15, 0.5);
+      margin: 2mm auto;
     }
+
     .bk-cover-season {
       font-style: italic;
       font-size: ${coverSeason}pt;
-      color: rgba(255,255,255,0.9);
-      margin-bottom: ${coverSpace * 0.5}mm;
-      line-height: 1.4;
-    }
-    .bk-cover-date {
-      font-size: ${coverDate}pt;
-      font-weight: 600;
       color: #fff;
       margin-bottom: 2mm;
+      line-height: 1.3;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+      word-wrap: break-word;
+      width: 100%;
     }
+
+    .bk-cover-date {
+      font-size: ${coverDate}pt;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 1mm;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+      word-wrap: break-word;
+      width: 100%;
+    }
+
     .bk-cover-venue {
       font-size: ${coverVenue}pt;
-      color: rgba(255,255,255,0.78);
+      color: rgba(255,255,255,0.95);
       letter-spacing: .05em;
+      font-weight: 900;
+      text-decoration: underline;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+      word-wrap: break-word;
+      width: 100%;
     }
 
     .bk-toc-head {
@@ -690,17 +755,19 @@ const BookletModal = ({ program, onClose }) => {
     bookletData?.program?.parish ||
     "";
 
-  const buildCoverHTML = () =>
-    `<div class="bk-cover">
-      <img src="/zuca-logo.png" alt="Logo" class="bk-cover-logo" />
-      ${orgLabel ? `<div class="bk-cover-org">${orgLabel}</div>` : ""}
-      <div class="bk-cover-rule"></div>
-      <h1 class="bk-cover-title">Mass Program</h1>
-      <div class="bk-cover-rule"></div>
-      <div class="bk-cover-season">${bookletData.program?.season || ""}</div>
-      <div class="bk-cover-date">${bookletData.program?.formattedDate || ""}</div>
-      <div class="bk-cover-venue">${bookletData.program?.venue || ""}</div>
+    const buildCoverHTML = () => {
+    const org = bookletData.program?.org || bookletData.program?.parish || "";
+
+    return `<div class="bk-cover">
+      <div class="bk-cover-text-box">
+        ${org ? `<div class="bk-cover-org">${org}</div>` : ""}
+        <div class="bk-cover-rule"></div>
+        <div class="bk-cover-season">${bookletData.program?.season || ""}</div>
+        <div class="bk-cover-date">${bookletData.program?.formattedDate || ""}</div>
+        <div class="bk-cover-venue">${bookletData.program?.venue || ""}</div>
+      </div>
     </div>`;
+  };
 
   const buildTOCHTML = () =>
     `<div class="bk-page bk-toc-page">

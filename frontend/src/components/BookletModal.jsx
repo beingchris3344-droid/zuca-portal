@@ -64,12 +64,9 @@ const buildPageCSS = (paperSize, columns, bgImage, coverBoxColor = "#FFD700") =>
   const boxPaddingV = Math.max(4, 8 * scale);
   const boxPaddingH = Math.max(4, 10 * scale);
 
-  // Adaptive box colors
-  const lightBox = isLightColor(coverBoxColor);
-  const boxBg = lightBox 
-    ? `linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), ${coverBoxColor}` 
-    : coverBoxColor;
-  const boxBorder = lightBox ? "#f1c40f" : coverBoxColor;
+  // Use the exact color the user picked, no dark overlay
+  const boxBg = coverBoxColor;
+  const boxBorder = coverBoxColor;
 
   return `
     @page {

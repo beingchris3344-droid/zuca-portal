@@ -149,7 +149,7 @@ export default function WhatsAppAdmin() {
   };
 
   return (
-    <div className="wa-portal-wrapper">
+    <div className={`wa-portal-wrapper ${activeChat ? 'mobile-chat-open' : ''}`}>
       
       {showNewChatModal && (
         <div className="wa-modal-overlay">
@@ -238,6 +238,15 @@ export default function WhatsAppAdmin() {
         {activeChat ? (
           <>
             <div className="wa-main-header">
+               <button 
+                 className="wa-mobile-back" 
+                 onClick={() => setActiveChat(null)}
+               >
+                 <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                   <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path>
+                 </svg>
+               </button>
+
                <div className="wa-avatar">
                  <img src={profilePics[activeChat]} alt="avatar" />
                </div>
@@ -319,8 +328,7 @@ export default function WhatsAppAdmin() {
       <style>{`
         .wa-portal-wrapper {
           display: flex;
-          height: calc(100vh - 120px);
-          min-height: 600px;
+          height: calc(100vh - 140px);
           width: 100%;
           background: #f0f2f5;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -338,6 +346,7 @@ export default function WhatsAppAdmin() {
           border-right: 1px solid #d1d7db;
           display: flex;
           flex-direction: column;
+          height: 100%;
         }
 
         .wa-sidebar-header {
@@ -349,6 +358,7 @@ export default function WhatsAppAdmin() {
           justify-content: space-between;
           border-bottom: 1px solid #d1d7db;
           border-top-left-radius: 8px;
+          flex-shrink: 0;
         }
 
         .wa-header-name {
@@ -387,6 +397,7 @@ export default function WhatsAppAdmin() {
           padding: 8px 12px;
           border-bottom: 1px solid #d1d7db;
           background: #ffffff;
+          flex-shrink: 0;
         }
 
         .wa-search-box {
@@ -489,6 +500,7 @@ export default function WhatsAppAdmin() {
           background: #efeae2;
           border-bottom-right-radius: 8px;
           border-top-right-radius: 8px;
+          height: 100%;
         }
 
         .wa-doodle-bg {
@@ -512,6 +524,7 @@ export default function WhatsAppAdmin() {
           border-bottom: 1px solid #d1d7db;
           z-index: 10;
           border-top-right-radius: 8px;
+          flex-shrink: 0;
         }
 
         .wa-main-header .wa-avatar {
@@ -624,6 +637,7 @@ export default function WhatsAppAdmin() {
           gap: 12px;
           z-index: 10;
           border-bottom-right-radius: 8px;
+          flex-shrink: 0;
         }
 
         .wa-input-icon {
@@ -763,6 +777,64 @@ export default function WhatsAppAdmin() {
         }
 
         .wa-btn-green:hover { background: #008f6f; }
+
+        .wa-mobile-back {
+          display: none;
+          background: transparent;
+          border: none;
+          color: #54656f;
+          cursor: pointer;
+          padding: 8px;
+          margin-right: 8px;
+        }
+
+        @media (max-width: 768px) {
+          .wa-portal-wrapper {
+            height: calc(100vh - 140px);
+            border-radius: 0;
+            box-shadow: none;
+          }
+
+          .wa-sidebar {
+            width: 100%;
+            max-width: 100%;
+            border-right: none;
+            border-radius: 0;
+          }
+
+          .wa-main {
+            display: none;
+            width: 100%;
+            border-radius: 0;
+          }
+
+          .wa-portal-wrapper.mobile-chat-open .wa-sidebar {
+            display: none;
+          }
+
+          .wa-portal-wrapper.mobile-chat-open .wa-main {
+            display: flex;
+          }
+
+          .wa-mobile-back {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .wa-messages-area {
+            padding: 16px;
+          }
+
+          .wa-input-area {
+            padding: 8px 12px;
+          }
+
+          .wa-modal {
+            width: 90%;
+            margin: 20px;
+          }
+        }
       `}</style>
     </div>
   );

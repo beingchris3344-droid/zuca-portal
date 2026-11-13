@@ -125,6 +125,7 @@ const AdminMemberDetail = lazy(() => import("./pages/admin/attendance/AdminMembe
 const EmailManagement = lazy(() => import("./pages/admin/EmailManagement"));
 const EmailDashboard = lazy(() => import("./pages/admin/EmailDashboard"));
 const WhatsAppBot = lazy(() => import("./pages/admin/WhatsAppBot"));
+const WhatsAppChat = lazy(() => import("./pages/admin/WhatsAppAdmin"));
 const MessageHistory = lazy(() => import("./pages/admin/MessageHistory"));
 const AdminFeedback = lazy(() => import("./pages/admin/AdminFeedback"));
 const AdminFeedbackDetail = lazy(() => import("./pages/admin/AdminFeedbackDetail"));
@@ -884,6 +885,7 @@ function AppContent() {
             <Route path="bank-payments" element={<BankPayments />} />
             <Route path="/admin/email" element={<EmailDashboard />} />
             <Route path="/admin/whatsapp" element={<WhatsAppBot />} />
+            <Route path="/admin/whatsapp-chat" element={<WhatsAppChat />} />
             <Route path="/admin/message-history" element={<MessageHistory />} />
             <Route path="/admin/feedback" element={<AdminFeedback />} />
             <Route

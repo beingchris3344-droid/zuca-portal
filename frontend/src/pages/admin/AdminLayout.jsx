@@ -244,11 +244,19 @@ export default function AdminLayout() {
 
 
         { label: "Feedback Management", path: "feedback", icon: <FaComments /> },
-        { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="green" /> },
+       
          { label: "Announcements", path: "announcements", icon: <FiBell /> },
       ],
     },
-     {
+
+    {
+      label: "WhatsApp Management",
+      items: [
+         { label: "WhatsApp Bot", path: "whatsapp", icon: <FaWhatsapp color="green" /> },
+        { label: "WhatsApp Chat", path: "whatsapp-chat", icon: <FaWhatsapp color="green" /> },
+      ]
+    },
+    {
       label: "Member management",
       items: [
         { label: "Members", path: "users", icon: <FiUsers /> },

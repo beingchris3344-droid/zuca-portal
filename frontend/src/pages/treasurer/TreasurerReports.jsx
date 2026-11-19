@@ -752,7 +752,7 @@ export default function TreasurerReports() {
               onClick={() => setShowSemesterDropdown(!showSemesterDropdown)}
               style={{ cursor: "pointer" }}
             >
-              <span className="semester-pill-icon">📅</span>
+              <span className="semester-pill-icon"></span>
               <span className="semester-pill-text">
                 {allSemesters.find((s) => s.id === selectedSemesterId)?.title || "Select Semester"}
               </span>

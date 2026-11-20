@@ -48,8 +48,9 @@ const emptyRow = (type = "IN") => ({
   description: "",
   category: type === "IN" ? "Contributions" : "Choir Expenses",
   amount: "",
-  reference: "",
+    reference: "",
   projectId: "",
+  notes: "",
 });
 
 /* ---------------------------------------------------------------- */
@@ -409,7 +410,8 @@ export default function TreasurerReports() {
     const placeholders = valid.map((r, i) => ({
       id: `tmp-${Date.now()}-${i}`,
       date: r.date, description: r.description.trim(), category: r.category,
-      type: bulkType, amount: parseFloat(r.amount), reference: r.reference || null,
+           type: bulkType, amount: parseFloat(r.amount), reference: r.reference || null,
+      notes: r.notes || null,
       projectId: r.projectId || null, attachments: [],
     }));
     setTransactions((prev) => [...prev, ...placeholders]);
@@ -421,7 +423,7 @@ export default function TreasurerReports() {
         const res = await axios.post(`${BASE_URL}/api/treasurer/ledger`, {
           date: r.date, description: r.description.trim(), category: r.category,
           type: bulkType, amount: parseFloat(r.amount), reference: r.reference || null,
-          notes: null, projectId: r.projectId || null,
+                    notes: r.notes || null, projectId: r.projectId || null,
         }, { headers });
         if (res.data.success) ok++; else fail++;
       } catch { fail++; }
@@ -1341,10 +1343,11 @@ const expenseSentences = expenses.map(({ category, total, entries }) => {
                 inCats={IN_CATS} outCats={OUT_CATS} projects={projects}
               />
             ) : (
-              <BulkForm
+                            <BulkForm
                 type={bulkType} setType={switchBulkType}
                 rows={bulkRows} setRows={setBulkRows}
                 inCats={IN_CATS} outCats={OUT_CATS}
+                projects={projects}
               />
             )}
 
@@ -1584,7 +1587,7 @@ function SingleForm({ form, setForm, setType, inCats, outCats, projects }) {
   );
 }
 
-function BulkForm({ type, setType, rows, setRows, inCats, outCats }) {
+function BulkForm({ type, setType, rows, setRows, inCats, outCats, projects }) {
   const update = (key, field, value) => setRows((r) => r.map((row) => row.key === key ? { ...row, [field]: value } : row));
   const remove = (key) => setRows((r) => r.length <= 1 ? r : r.filter((row) => row.key !== key));
   const add = () => setRows((r) => [...r, emptyRow(type)]);
@@ -1597,15 +1600,27 @@ function BulkForm({ type, setType, rows, setRows, inCats, outCats }) {
       </div>
       <div className="bulk-wrap">
         {rows.map((r, i) => (
-          <div className="bulk-row" key={r.key}>
-            <input type="date" className="input" value={r.date} onChange={(e) => update(r.key, "date", e.target.value)} />
-            <input className="input" placeholder={`Row ${i + 1}`} value={r.description} onChange={(e) => update(r.key, "description", e.target.value)} />
-            <select className="input" value={r.category} onChange={(e) => update(r.key, "category", e.target.value)}>
-              {cats.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <input type="number" className="input" placeholder="0" value={r.amount} onChange={(e) => update(r.key, "amount", e.target.value)} />
-            <input className="input" placeholder="ref" value={r.reference} onChange={(e) => update(r.key, "reference", e.target.value)} />
-            <button className="icon-btn icon-danger" onClick={() => remove(r.key)} disabled={rows.length <= 1}><FiX size={11} /></button>
+          <div className="bulk-card" key={r.key}>
+            <div className="bulk-card-head">
+              <span className="dim small">Row {i + 1}</span>
+              <button className="icon-btn icon-danger" onClick={() => remove(r.key)} disabled={rows.length <= 1}><FiX size={11} /></button>
+            </div>
+            <div className="bulk-row">
+              <input type="date" className="input" value={r.date} onChange={(e) => update(r.key, "date", e.target.value)} />
+              <input className="input" placeholder="Description" value={r.description} onChange={(e) => update(r.key, "description", e.target.value)} />
+              <select className="input" value={r.category} onChange={(e) => update(r.key, "category", e.target.value)}>
+                {cats.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input type="number" className="input" placeholder="0" value={r.amount} onChange={(e) => update(r.key, "amount", e.target.value)} />
+              <input className="input" placeholder="ref" value={r.reference} onChange={(e) => update(r.key, "reference", e.target.value)} />
+            </div>
+            <div className="bulk-row-secondary">
+              <select className="input" value={r.projectId || ""} onChange={(e) => update(r.key, "projectId", e.target.value)}>
+                <option value="">General</option>
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input className="input" placeholder="Notes" value={r.notes || ""} onChange={(e) => update(r.key, "notes", e.target.value)} />
+            </div>
           </div>
         ))}
       </div>
@@ -2050,7 +2065,7 @@ const BASE_CSS = `
 
   /* ---- modal ---- */
   .modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(15, 23, 42, .55); backdrop-filter: blur(2px); display: grid; place-items: center; padding: 16px; }
-  .modal { background: var(--surface); border-radius: var(--radius-lg); width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; box-shadow: var(--shadow-lg); padding: 20px; }
+  .modal { background: var(--surface); border-radius: var(--radius-lg); width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; box-shadow: var(--shadow-lg); padding: 20px; }
   .modal-wide { max-width: 780px; }
   .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
   .modal-head h3 { margin: 0; font-size: 15px; font-weight: 600; }
@@ -2062,9 +2077,12 @@ const BASE_CSS = `
   .form-row > div { display: flex; flex-direction: column; gap: 4px; }
 
   /* ---- bulk ---- */
-  .bulk-wrap { display: flex; flex-direction: column; gap: 6px; }
-  .bulk-row { display: grid; grid-template-columns: 130px 1fr 130px 90px 90px 26px; gap: 6px; align-items: center; }
-  .bulk-row .input { padding: 6px 8px; font-size: 12px; }
+  .bulk-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .bulk-card { padding: 14px; background: #f8fafc; border: 1px solid var(--border-soft); border-radius: 8px; }
+  .bulk-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .bulk-row { display: grid; grid-template-columns: 130px minmax(220px, 2fr) 140px 110px 110px; gap: 8px; align-items: center; }
+  .bulk-row-secondary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .bulk-row .input, .bulk-row-secondary .input { padding: 9px 10px; font-size: 13px; }
 
   /* ---- toast ---- */
   .toast { position: fixed; bottom: 16px; right: 16px; z-index: 200; padding: 10px 16px; border-radius: var(--radius); color: white; font-size: 12.5px; font-weight: 500; box-shadow: var(--shadow-lg); animation: slideIn .25s ease; max-width: 90vw; }
@@ -2111,7 +2129,9 @@ const BASE_CSS = `
     .rpt-tx-row > :nth-child(2), .rpt-tx-row > :nth-child(3) { grid-column: 1; }
     .rpt-tx-amt { grid-column: 2; grid-row: 1; }
     .form-row { grid-template-columns: 1fr; }
-    .bulk-row { grid-template-columns: 1fr 1fr; padding: 8px; background: #f8fafc; border-radius: 6px; }
+    .bulk-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .bulk-row .input:nth-child(2) { grid-column: 1 / -1; }
+    .bulk-row-secondary { grid-template-columns: 1fr; }
     .modal { padding: 16px; }
     .semester-menu { min-width: 0; width: min(92vw, 340px); }
   }

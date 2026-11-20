@@ -416,19 +416,21 @@ export default function TreasurerReports() {
     }));
     setTransactions((prev) => [...prev, ...placeholders]);
 
-    let ok = 0, fail = 0;
-    for (let i = 0; i < valid.length; i++) {
-      const r = valid[i];
-      try {
-        const res = await axios.post(`${BASE_URL}/api/treasurer/ledger`, {
-          date: r.date, description: r.description.trim(), category: r.category,
-          type: bulkType, amount: parseFloat(r.amount), reference: r.reference || null,
-                    notes: r.notes || null, projectId: r.projectId || null,
-        }, { headers });
-        if (res.data.success) ok++; else fail++;
-      } catch { fail++; }
-      setBulkProgress({ done: i + 1, total: valid.length });
-    }
+    let ok = 0, fail = 0, done = 0;
+    await Promise.allSettled(
+      valid.map(async (r) => {
+        try {
+          const res = await axios.post(`${BASE_URL}/api/treasurer/ledger`, {
+            date: r.date, description: r.description.trim(), category: r.category,
+            type: bulkType, amount: parseFloat(r.amount), reference: r.reference || null,
+            notes: r.notes || null, projectId: r.projectId || null,
+          }, { headers });
+          if (res.data.success) ok++; else fail++;
+        } catch { fail++; }
+        done += 1;
+        setBulkProgress({ done, total: valid.length });
+      })
+    );
     setBulkSaving(false);
     if (fail === 0) flash(`${ok} added`);
     else {

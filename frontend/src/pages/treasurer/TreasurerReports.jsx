@@ -337,6 +337,7 @@ export default function TreasurerReports() {
     setSaving(true);
     try {
       const payload = {
+        semesterId: selectedSemesterId,
         date: txForm.date, description: txForm.description, category: txForm.category,
         type: txForm.type, amount: amt, reference: txForm.reference || null,
         notes: txForm.notes || null, projectId: txForm.projectId || null,
@@ -421,6 +422,7 @@ export default function TreasurerReports() {
       valid.map(async (r) => {
         try {
           const res = await axios.post(`${BASE_URL}/api/treasurer/ledger`, {
+            semesterId: selectedSemesterId,
             date: r.date, description: r.description.trim(), category: r.category,
             type: bulkType, amount: parseFloat(r.amount), reference: r.reference || null,
             notes: r.notes || null, projectId: r.projectId || null,
@@ -458,6 +460,7 @@ export default function TreasurerReports() {
     setShowProjModal(false);
     try {
       const res = await axios.post(`${BASE_URL}/api/treasurer/projects`, {
+        semesterId: selectedSemesterId,
         name: projForm.name.trim(), description: projForm.description || null,
         targetAmount: projForm.targetAmount ? parseFloat(projForm.targetAmount) : null,
         startDate: projForm.startDate || null, endDate: projForm.endDate || null,

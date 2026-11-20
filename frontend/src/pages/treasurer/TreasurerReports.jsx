@@ -546,9 +546,13 @@ export default function TreasurerReports() {
       if (t.type === "IN") inc[t.category] = (inc[t.category] || 0) + Number(t.amount);
       else exp[t.category] = (exp[t.category] || 0) + Number(t.amount);
     });
+    const opening = ledgerSummary.openingBalance || 0;
     return {
       startDate: start, endDate: end, transactions: filtered,
-      totalIn, totalOut, balance: totalIn - totalOut,
+      totalIn, totalOut,
+      netChange: totalIn - totalOut,
+      openingBalance: opening,
+      closingBalance: opening + totalIn - totalOut,
       incomeByCategory: inc, expenseByCategory: exp,
       transactionCount: filtered.length,
       generatedOn: new Date().toLocaleString(),
@@ -559,7 +563,7 @@ export default function TreasurerReports() {
   /* ---- narrative builder: names every transaction ---- */
   const buildNarrative = (report) => {
     if (!report) return null;
-    const { transactions, totalIn, totalOut, balance, startDate, endDate, scopeLabel } = report;
+    const { transactions, totalIn, totalOut,balance, netChange, openingBalance, closingBalance, startDate, endDate, scopeLabel } = report;
     const fmt = (n) => `KES ${Number(n).toLocaleString()}`;
     const fmtDate = (d) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
@@ -620,11 +624,11 @@ const expenseSentences = expenses.map(({ category, total, entries }) => {
   return `${m.label}: received ${fmt(m.in)}, spent ${fmt(m.out)}, net ${net >= 0 ? "+" : "-"}${fmt(Math.abs(net))}`;
 });
 
-   const verdict = balance > 0
-  ? `The treasury closed the period with a surplus of ${fmt(balance)}. Income exceeded expenses and reserves grew.`
-  : balance < 0
-    ? `The treasury closed the period with a deficit of ${fmt(Math.abs(balance))}. Expenses exceeded income and reserves were drawn down to cover the gap.`
-    : `The treasury closed the period exactly break-even at ${fmt(0)}. Income and expenses were equal.`;
+   const verdict = netChange > 0
+  ? `The period recorded a surplus of ${fmt(netChange)}: income exceeded expenses and reserves grew from ${fmt(openingBalance)} to ${fmt(closingBalance)}.`
+  : netChange < 0
+    ? `The period recorded a deficit of ${fmt(Math.abs(netChange))}: expenses exceeded income and reserves were drawn down from ${fmt(openingBalance)} to ${fmt(closingBalance)}.`
+    : `The period was break-even: income and expenses matched, leaving the balance unchanged at ${fmt(closingBalance)}.`;
 
     return {
       period: `${fmtDate(startDate)} to ${fmtDate(endDate)}`,
@@ -1055,9 +1059,13 @@ const expenseSentences = expenses.map(({ category, total, entries }) => {
 
                 {/* SUMMARY CARDS */}
                 <div className="rpt-sum">
+                  <div><span>Opening</span><strong>KES {Number(reportData.openingBalance || 0).toLocaleString()}</strong></div>
                   <div className="rpt-sum-income"><span>Income</span><strong>KES {reportData.totalIn.toLocaleString()}</strong></div>
                   <div className="rpt-sum-expense"><span>Expenses</span><strong>KES {reportData.totalOut.toLocaleString()}</strong></div>
-                  <div className={reportData.balance >= 0 ? "rpt-sum-income" : "rpt-sum-expense"}><span>Net</span><strong>KES {reportData.balance.toLocaleString()}</strong></div>
+                  <div className={reportData.netChange >= 0 ? "rpt-sum-income" : "rpt-sum-expense"}>
+                    <span>Net change</span><strong>{reportData.netChange >= 0 ? "+" : "−"}KES {Math.abs(reportData.netChange).toLocaleString()}</strong>
+                  </div>
+                  <div><span>Account Balance</span><strong>KES {Number(reportData.closingBalance || 0).toLocaleString()}</strong></div>
                 </div>
 
                 {/* EXECUTIVE SUMMARY */}
@@ -1070,8 +1078,10 @@ const expenseSentences = expenses.map(({ category, total, entries }) => {
                       <strong>{narrative.transactionCount} {narrative.transactionCount === 1 ? "transaction" : "transactions"}</strong> during this period —{" "}
                       <strong className="cell-in">KES {reportData.totalIn.toLocaleString()}</strong> in income and{" "}
                       <strong className="cell-out">KES {reportData.totalOut.toLocaleString()}</strong> in expenses — producing a net{" "}
-                      <strong>{reportData.balance >= 0 ? "surplus" : "deficit"}</strong> of{" "}
-                      <strong>KES {Math.abs(reportData.balance).toLocaleString()}</strong>.
+                      <strong>{reportData.netChange >= 0 ? "surplus" : "deficit"}</strong> of{" "}
+                      <strong>KES {Math.abs(reportData.netChange).toLocaleString()}</strong>. The semester opened at{" "}
+                      <strong>KES {Number(reportData.openingBalance || 0).toLocaleString()}</strong> and closed at{" "}
+                      <strong>KES {Number(reportData.closingBalance || 0).toLocaleString()}</strong>.
                     </p>
                     <p>{narrative.verdict}</p>
                   </div>
@@ -1082,7 +1092,7 @@ const expenseSentences = expenses.map(({ category, total, entries }) => {
                   <div className="rpt-section">
                     <h4><span className="dot dot-in" /> Where the money came from</h4>
                     <p className="rpt-lead">
-                      The treasury received <strong className="cell-in">KES {reportData.totalIn.toLocaleString()}</strong> across{" "}
+                      Account balance was  <strong>KES {Number(reportData.openingBalance || 0).toLocaleString()}</strong> hence the semester started; The treasury received <strong className="cell-in">KES {reportData.totalIn.toLocaleString()}</strong> across{" "}
                       <strong>{narrative.incomeSentences.length} {narrative.incomeSentences.length === 1 ? "income category" : "income categories"}</strong>.
                       {narrative.topIncome && (
                         <> The single largest source was <strong>{narrative.topIncome.category}</strong>, contributing{" "}
@@ -1983,7 +1993,7 @@ const BASE_CSS = `
   .rpt-head h2 { margin: 0 0 4px; font-size: 16px; font-weight: 700; letter-spacing: .2px; }
   .rpt-head p { margin: 2px 0; color: var(--text-dim); font-size: 12px; }
   .rpt-scope { color: var(--accent) !important; font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .5px; }
-  .rpt-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .rpt-sum { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
   .rpt-sum > div { padding: 12px; background: #f8fafc; border-radius: 8px; text-align: center; }
   .rpt-sum span { display: block; font-size: 10px; color: var(--text-mute); text-transform: uppercase; font-weight: 600; letter-spacing: .5px; }
   .rpt-sum strong { display: block; font-size: 15px; font-weight: 700; margin-top: 3px; }
@@ -2129,7 +2139,7 @@ const BASE_CSS = `
     .actions .btn { flex: 1; justify-content: center; }
     .data-table { display: none; }
     .report-body { padding: 14px; }
-    .rpt-sum { grid-template-columns: 1fr; }
+    .rpt-sum { grid-template-columns: repeat(2, 1fr); }
     .rpt-tx-row { grid-template-columns: 1fr auto; }
     .rpt-tx-row > :nth-child(2), .rpt-tx-row > :nth-child(3) { grid-column: 1; }
     .rpt-tx-amt { grid-column: 2; grid-row: 1; }
